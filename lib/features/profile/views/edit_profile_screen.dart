@@ -113,10 +113,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
       // 2. Update Nutrition Targets
       await ref.read(nutritionTargetsProvider.notifier).updateTargets(
-            calories: int.tryParse(_caloriesController.text),
-            proteinG: int.tryParse(_proteinController.text),
-            carbsG: int.tryParse(_carbsController.text),
-            fatG: int.tryParse(_fatController.text),
+            NutritionTargets(
+              calories: int.tryParse(_caloriesController.text) ?? 2000,
+              proteinG: int.tryParse(_proteinController.text) ?? 150,
+              carbsG: int.tryParse(_carbsController.text) ?? 200,
+              fatG: int.tryParse(_fatController.text) ?? 70,
+            ),
           );
 
       if (mounted) {

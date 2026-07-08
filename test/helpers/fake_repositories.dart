@@ -10,7 +10,7 @@ class FakeWorkoutRepository implements WorkoutRepository {
   List<Workout> workouts = [];
 
   @override
-  Future<List<Workout>> getWorkouts(String userId) async {
+  Future<List<Workout>> getWorkouts(String userId, {int? limit, int? offset}) async {
     return workouts.where((w) => w.userId == userId).toList();
   }
 
@@ -18,6 +18,11 @@ class FakeWorkoutRepository implements WorkoutRepository {
   Future<Workout> saveWorkout(Workout workout) async {
     workouts.add(workout);
     return workout;
+  }
+
+  @override
+  Future<void> createWorkout(Workout workout) async {
+    workouts.add(workout);
   }
 
   @override
@@ -43,6 +48,19 @@ class FakeGoalRepository implements GoalRepository {
       goals.add(goal);
     }
     return goal;
+  }
+
+  @override
+  Future<void> createGoal(Goal goal) async {
+    goals.add(goal);
+  }
+
+  @override
+  Future<void> updateGoal(Goal goal) async {
+    final index = goals.indexWhere((g) => g.id == goal.id);
+    if (index >= 0) {
+      goals[index] = goal;
+    }
   }
 
   @override
@@ -80,7 +98,14 @@ class FakeProfileRepository implements ProfileRepository {
   }
 
   @override
-  Future<void> updateStreak(Streak streak) async {
-    currentStreak = streak;
+  Future<Streak> updateStreak(String userId) async {
+    currentStreak = Streak(
+      id: '1',
+      userId: userId,
+      currentStreak: 2,
+      longestStreak: 2,
+      lastWorkoutDate: DateTime.now(),
+    );
+    return currentStreak!;
   }
 }

@@ -201,13 +201,12 @@ class NotificationService {
       const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
       await _plugin.zonedSchedule(
-        notificationId,
-        'Protect your ${streak.currentStreak}-Day Streak! 🔥',
-        "You haven't logged a workout today yet. Don't let your active streak reset!",
-        tzScheduled,
-        details,
+        id: notificationId,
+        title: 'Protect your ${streak.currentStreak}-Day Streak! 🔥',
+        body: "You haven't logged a workout today yet. Don't let your active streak reset!",
+        scheduledDate: tzScheduled,
+        notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
       debugPrint("FitTrack: Scheduled streak protective reminder for $tzScheduled");
     } catch (e) {
@@ -274,13 +273,12 @@ class NotificationService {
         }
 
         await _plugin.zonedSchedule(
-          2000 + count,
-          'Goal Deadline Approaching! 🎯',
-          'Only 3 days left to reach your $typeTitle target. Keep pushing!',
-          tzScheduled,
-          details,
+          id: 2000 + count,
+          title: 'Goal Deadline Approaching!',
+          body: 'Your goal "${goal.goalType}" is due in 3 days. Let\'s make a final push!',
+          scheduledDate: tzScheduled,
+          notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         );
         count++;
         if (count >= 50) break; // Limit to 50 active goal reminders

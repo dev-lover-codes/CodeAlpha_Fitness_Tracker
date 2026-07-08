@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fit_track/features/auth/views/login_view.dart';
-import 'package:fit_track/core/providers/auth_provider.dart';
 
 void main() {
   testWidgets('LoginScreen shows validation errors', (WidgetTester tester) async {

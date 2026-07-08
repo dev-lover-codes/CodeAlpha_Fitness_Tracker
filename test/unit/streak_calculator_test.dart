@@ -14,10 +14,12 @@ void main() {
     });
 
     test('increments streak if worked out yesterday', () {
-      final streak = const Streak(
+      final streak = Streak(
+        id: '1',
+        userId: 'u1',
         currentStreak: 2,
         longestStreak: 5,
-        lastWorkoutDate: '2026-07-07',
+        lastWorkoutDate: DateTime(2026, 7, 7),
       );
       final today = DateTime(2026, 7, 8);
       final result = StreakCalculator.calculateNextStreak(streak, today);
@@ -28,10 +30,12 @@ void main() {
     });
 
     test('resets streak if gap is more than 1 day', () {
-      final streak = const Streak(
+      final streak = Streak(
+        id: '1',
+        userId: 'u1',
         currentStreak: 4,
         longestStreak: 4,
-        lastWorkoutDate: '2026-07-06', // 2 days ago
+        lastWorkoutDate: DateTime(2026, 7, 6), // 2 days ago
       );
       final today = DateTime(2026, 7, 8);
       final result = StreakCalculator.calculateNextStreak(streak, today);
@@ -42,10 +46,12 @@ void main() {
     });
 
     test('maintains streak if already worked out today', () {
-      final streak = const Streak(
+      final streak = Streak(
+        id: '1',
+        userId: 'u1',
         currentStreak: 3,
         longestStreak: 3,
-        lastWorkoutDate: '2026-07-08',
+        lastWorkoutDate: DateTime(2026, 7, 8),
       );
       final today = DateTime(2026, 7, 8);
       final result = StreakCalculator.calculateNextStreak(streak, today);

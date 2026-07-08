@@ -30,58 +30,49 @@ class NutritionTargets {
   }
 }
 
-final nutritionTargetsProvider = StateNotifierProvider<NutritionTargetsNotifier, NutritionTargets>((ref) {
-  final authService = ref.watch(authServiceProvider);
-  final userId = authService.currentUser?.id ?? '';
-  return NutritionTargetsNotifier(userId);
+final nutritionTargetsProvider = NotifierProvider<NutritionTargetsNotifier, NutritionTargets>(() {
+  return NutritionTargetsNotifier();
 });
 
-class NutritionTargetsNotifier extends StateNotifier<NutritionTargets> {
-  final String userId;
-
-  NutritionTargetsNotifier(this.userId)
-      : super(const NutritionTargets(calories: 2000, proteinG: 150, carbsG: 200, fatG: 70)) {
-    _loadTargets();
+class NutritionTargetsNotifier extends Notifier<NutritionTargets> {
+  @override
+  NutritionTargets build() {
+    // Initial default state
+    final userId = ref.watch(authProvider).value?.id ?? '';
+    if (userId.isNotEmpty) {
+      _loadTargets(userId);
+    }
+    return const NutritionTargets(calories: 2000, proteinG: 150, carbsG: 200, fatG: 70);
   }
 
-  Future<void> _loadTargets() async {
-    if (userId.isEmpty) return;
+  Future<void> _loadTargets(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     
-    final calories = prefs.getInt('nutrition_calories_$userId') ?? 2000;
-    final protein = prefs.getInt('nutrition_protein_$userId') ?? 150;
-    final carbs = prefs.getInt('nutrition_carbs_$userId') ?? 200;
-    final fat = prefs.getInt('nutrition_fat_$userId') ?? 70;
+    final cals = prefs.getInt('target_calories_$userId');
+    final p = prefs.getInt('target_protein_$userId');
+    final c = prefs.getInt('target_carbs_$userId');
+    final f = prefs.getInt('target_fat_$userId');
 
-    state = NutritionTargets(
-      calories: calories,
-      proteinG: protein,
-      carbsG: carbs,
-      fatG: fat,
-    );
+    if (cals != null) {
+      state = NutritionTargets(
+        calories: cals,
+        proteinG: p ?? 150,
+        carbsG: c ?? 200,
+        fatG: f ?? 70,
+      );
+    }
   }
 
-  Future<void> updateTargets({
-    int? calories,
-    int? proteinG,
-    int? carbsG,
-    int? fatG,
-  }) async {
+  Future<void> updateTargets(NutritionTargets newTargets) async {
+    final userId = ref.read(authProvider).value?.id ?? '';
     if (userId.isEmpty) return;
+
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('target_calories_$userId', newTargets.calories);
+    await prefs.setInt('target_protein_$userId', newTargets.proteinG);
+    await prefs.setInt('target_carbs_$userId', newTargets.carbsG);
+    await prefs.setInt('target_fat_$userId', newTargets.fatG);
 
-    final next = state.copyWith(
-      calories: calories,
-      proteinG: proteinG,
-      carbsG: carbsG,
-      fatG: fatG,
-    );
-
-    await prefs.setInt('nutrition_calories_$userId', next.calories);
-    await prefs.setInt('nutrition_protein_$userId', next.proteinG);
-    await prefs.setInt('nutrition_carbs_$userId', next.carbsG);
-    await prefs.setInt('nutrition_fat_$userId', next.fatG);
-
-    state = next;
+    state = newTargets;
   }
 }
