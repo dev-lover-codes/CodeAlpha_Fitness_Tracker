@@ -38,7 +38,7 @@ class NutritionTargetsNotifier extends Notifier<NutritionTargets> {
   @override
   NutritionTargets build() {
     // Initial default state
-    final userId = ref.watch(authProvider).value?.id ?? '';
+    final userId = ref.watch(authServiceProvider).currentUser?.id ?? '';
     if (userId.isNotEmpty) {
       _loadTargets(userId);
     }
@@ -64,7 +64,7 @@ class NutritionTargetsNotifier extends Notifier<NutritionTargets> {
   }
 
   Future<void> updateTargets(NutritionTargets newTargets) async {
-    final userId = ref.read(authProvider).value?.id ?? '';
+    final userId = ref.read(authServiceProvider).currentUser?.id ?? '';
     if (userId.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();

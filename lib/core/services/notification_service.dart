@@ -38,7 +38,7 @@ class NotificationService {
     const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
 
     try {
-      await _plugin.initialize(initializationSettings: initSettings);
+      await _plugin.initialize(settings: initSettings);
       debugPrint("FitTrack: NotificationService initialized.");
     } catch (e) {
       debugPrint("FitTrack: Notification initialization error: $e");

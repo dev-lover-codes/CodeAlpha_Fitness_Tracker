@@ -43,22 +43,23 @@ class AppSettings {
   }
 }
 
-final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
+final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(() {
   return SettingsNotifier();
 });
 
-class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier()
-      : super(const AppSettings(
-          weightUnit: 'kg',
-          heightUnit: 'cm',
-          themeMode: ThemeMode.system,
-          dailyReminderEnabled: true,
-          dailyReminderTime: '08:00',
-          streakReminderEnabled: true,
-          goalDeadlineReminderEnabled: true,
-        )) {
+class SettingsNotifier extends Notifier<AppSettings> {
+  @override
+  AppSettings build() {
     _loadSettings();
+    return const AppSettings(
+      weightUnit: 'kg',
+      heightUnit: 'cm',
+      themeMode: ThemeMode.system,
+      dailyReminderEnabled: true,
+      dailyReminderTime: '08:00',
+      streakReminderEnabled: true,
+      goalDeadlineReminderEnabled: true,
+    );
   }
 
   Future<void> _loadSettings() async {
