@@ -763,6 +763,7 @@ class _PhotosTabState extends ConsumerState<_PhotosTab> {
 
     // Ask user for optional notes
     final notesController = TextEditingController();
+    if (!context.mounted) return;
     final upload = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -781,6 +782,7 @@ class _PhotosTabState extends ConsumerState<_PhotosTab> {
     if (upload != true) return;
 
     // Show loading spinner
+    if (!context.mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -792,11 +794,13 @@ class _PhotosTabState extends ConsumerState<_PhotosTab> {
             File(picked.path),
             notesController.text.trim().isEmpty ? null : notesController.text.trim(),
           );
+      if (!context.mounted) return;
       Navigator.pop(context); // Pop loading spinner
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Progress photo uploaded!'), backgroundColor: Colors.green),
       );
     } catch (e) {
+      if (!context.mounted) return;
       Navigator.pop(context); // Pop loading spinner
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to upload: $e'), backgroundColor: Colors.red),

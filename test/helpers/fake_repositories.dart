@@ -14,15 +14,15 @@ class FakeWorkoutRepository implements WorkoutRepository {
     return workouts.where((w) => w.userId == userId).toList();
   }
 
-  @override
   Future<Workout> saveWorkout(Workout workout) async {
     workouts.add(workout);
     return workout;
   }
 
   @override
-  Future<void> createWorkout(Workout workout) async {
+  Future<Workout> createWorkout(Workout workout) async {
     workouts.add(workout);
+    return workout;
   }
 
   @override
@@ -39,7 +39,6 @@ class FakeGoalRepository implements GoalRepository {
     return goals.where((g) => g.userId == userId).toList();
   }
 
-  @override
   Future<Goal> saveGoal(Goal goal) async {
     final index = goals.indexWhere((g) => g.id == goal.id);
     if (index >= 0) {
@@ -51,19 +50,20 @@ class FakeGoalRepository implements GoalRepository {
   }
 
   @override
-  Future<void> createGoal(Goal goal) async {
+  Future<Goal> createGoal(Goal goal) async {
     goals.add(goal);
+    return goal;
   }
 
   @override
-  Future<void> updateGoal(Goal goal) async {
+  Future<Goal> updateGoal(Goal goal) async {
     final index = goals.indexWhere((g) => g.id == goal.id);
     if (index >= 0) {
       goals[index] = goal;
     }
+    return goal;
   }
 
-  @override
   Future<void> updateGoalProgress(String goalId, double currentProgress) async {
     final index = goals.indexWhere((g) => g.id == goalId);
     if (index >= 0) {

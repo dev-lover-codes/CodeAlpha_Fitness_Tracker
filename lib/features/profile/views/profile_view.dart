@@ -33,6 +33,8 @@ class ProfileView extends ConsumerWidget {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final storagePath = '$userId/avatar_$timestamp.jpg';
 
+    if (!context.mounted) return;
+
     // Show loading indicator
     showDialog(
       context: context,

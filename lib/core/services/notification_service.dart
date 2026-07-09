@@ -275,7 +275,7 @@ class NotificationService {
         await _plugin.zonedSchedule(
           id: 2000 + count,
           title: 'Goal Deadline Approaching!',
-          body: 'Your goal "${goal.goalType}" is due in 3 days. Let\'s make a final push!',
+          body: 'Your $typeTitle is due in 3 days. Let\'s make a final push!',
           scheduledDate: tzScheduled,
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
