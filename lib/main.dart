@@ -8,6 +8,9 @@ import 'core/theme/app_theme.dart';
 import 'core/providers/settings_provider.dart';
 import 'core/providers/notification_provider.dart';
 
+bool isSupabaseInitialized = false;
+String? supabaseInitError;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -16,6 +19,7 @@ void main() async {
     await dotenv.load(fileName: ".env");
   } catch (e) {
     debugPrint("FitTrack: Failed to load .env file: $e");
+    supabaseInitError = "Failed to load .env file: $e";
   }
 
   // Retrieve Supabase credentials
@@ -33,13 +37,16 @@ void main() async {
       await Supabase.initialize(
         url: supabaseUrl,
         publishableKey: supabaseAnonKey,
-      );
+      ).timeout(const Duration(seconds: 10));
+      isSupabaseInitialized = true;
       debugPrint("FitTrack: Supabase initialized successfully.");
     } catch (e) {
-      debugPrint("FitTrack: Failed to initialize Supabase: $e");
+      supabaseInitError = "Failed to initialize Supabase: $e";
+      debugPrint("FitTrack: $supabaseInitError");
     }
   } else {
-    debugPrint("FitTrack: Supabase credentials are missing or placeholders. Skipping initialization.");
+    supabaseInitError = "Supabase credentials are missing or placeholders. Please update .env";
+    debugPrint("FitTrack: $supabaseInitError");
   }
 
   runApp(

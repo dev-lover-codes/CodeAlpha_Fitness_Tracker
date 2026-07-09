@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fit_track/core/models/nutrition_log.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
 import 'package:fit_track/core/providers/supabase_provider.dart';

@@ -2,13 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient? get _supabase {
+    try {
+      return Supabase.instance.client;
+    } catch (e) {
+      return null;
+    }
+  }
 
   /// Exposes the stream of authentication state changes.
-  Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
+  Stream<AuthState> get authStateChanges => _supabase?.auth.onAuthStateChange ?? const Stream.empty();
 
   /// Gets the currently authenticated user, if any.
-  User? get currentUser => _supabase.auth.currentUser;
+  User? get currentUser => _supabase?.auth.currentUser;
 
   /// Sign up a new user with email, password, and metadata (full name).
   Future<AuthResponse> signUp({
@@ -16,7 +22,7 @@ class AuthService {
     required String password,
     required String fullName,
   }) async {
-    return await _supabase.auth.signUp(
+    return await _supabase!.auth.signUp(
       email: email,
       password: password,
       data: {
@@ -30,7 +36,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _supabase.auth.signInWithPassword(
+    return await _supabase!.auth.signInWithPassword(
       email: email,
       password: password,
     );
@@ -39,12 +45,12 @@ class AuthService {
   /// Sign in with Google using OAuth.
   Future<bool> signInWithGoogle() async {
     if (kIsWeb) {
-      return await _supabase.auth.signInWithOAuth(
+      return await _supabase!.auth.signInWithOAuth(
         OAuthProvider.google,
       );
     } else {
       // For mobile app, we can use standard OAuth redirect or native Google sign-in
-      return await _supabase.auth.signInWithOAuth(
+      return await _supabase!.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: 'io.supabase.fittrack://login-callback',
       );
@@ -53,12 +59,12 @@ class AuthService {
 
   /// Sign out the current user.
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    await _supabase!.auth.signOut();
   }
 
   /// Send password reset link to user's email.
   Future<void> resetPassword({required String email}) async {
-    await _supabase.auth.resetPasswordForEmail(
+    await _supabase!.auth.resetPasswordForEmail(
       email,
       redirectTo: kIsWeb ? null : 'io.supabase.fittrack://reset-callback',
     );
@@ -67,7 +73,7 @@ class AuthService {
   /// Fetch user profile details.
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     try {
-      final response = await _supabase
+      final response = await _supabase!
           .from('profiles')
           .select()
           .eq('id', userId)
@@ -89,7 +95,7 @@ class AuthService {
     required String fitnessGoal,
     required String activityLevel,
   }) async {
-    await _supabase.from('profiles').update({
+    await _supabase!.from('profiles').update({
       'height_cm': heightCm,
       'weight_kg': weightKg,
       'date_of_birth': dateOfBirth.toIso8601String().substring(0, 10),

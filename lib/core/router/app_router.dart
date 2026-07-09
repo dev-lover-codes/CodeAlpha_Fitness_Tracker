@@ -23,6 +23,7 @@ import '../../features/exercises/views/exercise_detail_screen.dart';
 import '../../features/exercises/views/create_custom_exercise_screen.dart';
 import '../../features/goals/views/goals_screen.dart';
 import '../../features/goals/views/create_goal_screen.dart';
+import '../../main.dart';
 
 /// Provider exposing the reactive GoRouter configuration.
 /// Watches authStateProvider and userProfileProvider to automatically compute redirections.
@@ -44,9 +45,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       
       final isSplash = subState == '/splash';
 
-      // 1. If NOT logged in, redirect to login unless already on an auth route or splash
+      // 0. If Supabase failed to initialize, force stay on Splash to show the error
+      if (!isSupabaseInitialized) {
+        if (!isSplash) return '/splash';
+        return null;
+      }
+
+      // 1. If NOT logged in, redirect to login unless already on an auth route
       if (!isLoggedIn) {
-        if (!isAuthRoute && !isSplash) {
+        if (!isAuthRoute) {
           return '/login';
         }
         return null;
