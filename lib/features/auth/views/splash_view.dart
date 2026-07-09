@@ -35,7 +35,6 @@ class _SplashViewState extends ConsumerState<SplashView> {
         await Supabase.initialize(
           url: supabaseUrl,
           publishableKey: supabaseAnonKey,
-          authCallbackUrlHostname: 'login-callback',
         ).timeout(const Duration(seconds: 10));
         
         isSupabaseInitialized = true;

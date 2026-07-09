@@ -37,7 +37,6 @@ void main() async {
       await Supabase.initialize(
         url: supabaseUrl,
         publishableKey: supabaseAnonKey,
-        authCallbackUrlHostname: 'login-callback',
       ).timeout(const Duration(seconds: 10));
       isSupabaseInitialized = true;
       debugPrint("FitTrack: Supabase initialized successfully.");
