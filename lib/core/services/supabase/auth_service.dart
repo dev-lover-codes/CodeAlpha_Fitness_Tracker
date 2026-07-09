@@ -52,7 +52,7 @@ class AuthService {
       // For mobile app, we can use standard OAuth redirect or native Google sign-in
       return await _supabase!.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'io.supabase.fittrack://login-callback',
+        redirectTo: 'io.supabase.fittracker://login-callback',
       );
     }
   }
