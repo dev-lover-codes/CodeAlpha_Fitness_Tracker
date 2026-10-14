@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/auth_provider.dart';
 
 class LoginView extends ConsumerStatefulWidget {
@@ -45,9 +46,10 @@ class _LoginViewState extends ConsumerState<LoginView> {
       // On success, GoRouter's redirect guard will automatically route the user
     } catch (e) {
       if (mounted) {
+        final String msg = e is AuthException ? e.message : e.toString().replaceAll("Exception: ", "");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll("Exception: ", "")),
+            content: Text(msg),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -75,9 +77,10 @@ class _LoginViewState extends ConsumerState<LoginView> {
       ref.invalidate(userProfileProvider);
     } catch (e) {
       if (mounted) {
+        final String msg = e is AuthException ? e.message : e.toString().replaceAll("Exception: ", "");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Google Sign-In failed: $e"),
+            content: Text("Google Sign-In failed: $msg"),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

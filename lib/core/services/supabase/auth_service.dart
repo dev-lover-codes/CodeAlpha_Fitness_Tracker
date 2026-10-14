@@ -44,29 +44,31 @@ class AuthService {
 
   /// Sign in with Google using OAuth.
   Future<bool> signInWithGoogle() async {
-    if (kIsWeb) {
-      return await _supabase!.auth.signInWithOAuth(
-        OAuthProvider.google,
-      );
-    } else {
-      // For mobile app, we can use standard OAuth redirect or native Google sign-in
-      return await _supabase!.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'io.supabase.fittracker://login-callback',
-      );
+    final client = _supabase;
+    if (client == null) {
+      throw Exception("Supabase is not initialized. Please verify your connection.");
     }
+    final redirectUrl = kIsWeb ? Uri.base.origin : 'io.supabase.fittracker://login-callback';
+    return await client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: redirectUrl,
+    );
   }
 
   /// Sign out the current user.
   Future<void> signOut() async {
-    await _supabase!.auth.signOut();
+    await _supabase?.auth.signOut();
   }
 
   /// Send password reset link to user's email.
   Future<void> resetPassword({required String email}) async {
-    await _supabase!.auth.resetPasswordForEmail(
+    final client = _supabase;
+    if (client == null) {
+      throw Exception("Supabase is not initialized. Please verify your connection.");
+    }
+    await client.auth.resetPasswordForEmail(
       email,
-      redirectTo: kIsWeb ? null : 'io.supabase.fittrack://reset-callback',
+      redirectTo: kIsWeb ? Uri.base.origin : 'io.supabase.fittracker://reset-callback',
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/auth_provider.dart';
 
 class SignupView extends ConsumerStatefulWidget {
@@ -52,7 +53,7 @@ class _SignupViewState extends ConsumerState<SignupView> {
 
     try {
       final authService = ref.read(authServiceProvider);
-      await authService.signUp(
+      final response = await authService.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         fullName: _nameController.text.trim(),
@@ -61,12 +62,62 @@ class _SignupViewState extends ConsumerState<SignupView> {
       // Force refresh of the profile cache
       ref.invalidate(userProfileProvider);
 
-      // GoRouter redirect guard will handle redirection to /onboarding automatically upon successful signup
+      if (response.session == null && mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Check Your Email'),
+            content: const Text(
+              'A verification email has been sent. Please confirm your email address before logging in.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.go('/login');
+                },
+                child: const Text('Go to Login'),
+              ),
+            ],
+          ),
+        );
+      }
+      // If session != null (autoconfirm enabled), GoRouter redirect guard will handle redirection to /onboarding
     } catch (e) {
       if (mounted) {
+        final String msg = e is AuthException ? e.message : e.toString().replaceAll("Exception: ", "");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll("Exception: ", "")),
+            content: Text(msg),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final authService = ref.read(authServiceProvider);
+      await authService.signInWithGoogle();
+      ref.invalidate(userProfileProvider);
+    } catch (e) {
+      if (mounted) {
+        final String msg = e is AuthException ? e.message : e.toString().replaceAll("Exception: ", "");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Google Sign-In failed: $msg"),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -278,6 +329,42 @@ class _SignupViewState extends ConsumerState<SignupView> {
                           'Create Account',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
+                ),
+                const SizedBox(height: 16),
+
+                // Social divider
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: theme.dividerColor)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(
+                        'OR',
+                        style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: theme.dividerColor)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Google Sign Up Button
+                OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _signInWithGoogle,
+                  icon: Image.asset(
+                    'assets/icon/google_logo.png',
+                    height: 20,
+                    width: 20,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.g_mobiledata_rounded, size: 24),
+                  ),
+                  label: const Text('Sign up with Google'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 24),
 
