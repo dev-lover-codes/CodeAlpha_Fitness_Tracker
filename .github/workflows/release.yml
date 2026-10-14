@@ -1,0 +1,90 @@
+name: Build and Publish Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag Name (e.g., v1.0.6)'
+        required: false
+        default: ''
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_release:
+    name: Build & Release Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create .env Configuration
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL || 'https://szqdrcfbwytqpmqsthrx.supabase.co' }}" > .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6cWRyY2Zid3l0cXBtcXN0aHJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MTY1OTcsImV4cCI6MjA5OTA5MjU5N30.VkO7NPMUm-5ORen_zRmLeLFjCDOfn6b0Eu0XmsNz0s0' }}" >> .env
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Android Release APK
+        run: flutter build apk --release
+
+      - name: Prepare Release Artifacts
+        id: release_info
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v1.0.$(date +'%Y%m%d%H%M')"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          cp build/app/outputs/flutter-apk/app-release.apk "FitTrack-${TAG}.apk"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: "FitTrack Release ${{ steps.release_info.outputs.tag }}"
+          body: |
+            ## FitTrack Mobile App (${{ steps.release_info.outputs.tag }})
+
+            ### What's New
+            - Supabase Authentication (Email/Password & Google Sign-In with OAuth redirect support)
+            - Real-time fitness tracking & workout logging
+            - Automated cloud database keep-alive & health checks
+
+            ### Download & Installation
+            Download the attached Android APK (`FitTrack-${{ steps.release_info.outputs.tag }}.apk` or `app-release.apk`) to install directly on your Android device.
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            FitTrack-${{ steps.release_info.outputs.tag }}.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
