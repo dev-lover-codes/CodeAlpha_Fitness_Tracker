@@ -43,9 +43,12 @@ jobs:
           cache: true
 
       - name: Create .env Configuration
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL || 'https://szqdrcfbwytqpmqsthrx.supabase.co' }}" > .env
-          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6cWRyY2Zid3l0cXBtcXN0aHJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MTY1OTcsImV4cCI6MjA5OTA5MjU5N30.VkO7NPMUm-5ORen_zRmLeLFjCDOfn6b0Eu0XmsNz0s0' }}" >> .env
+          echo "SUPABASE_URL=${SB_URL}" > .env
+          echo "SUPABASE_ANON_KEY=${SB_KEY}" >> .env
 
       - name: Install Dependencies
         run: flutter pub get
