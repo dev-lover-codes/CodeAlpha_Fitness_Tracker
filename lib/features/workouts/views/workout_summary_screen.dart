@@ -92,7 +92,7 @@ class WorkoutSummaryScreen extends StatelessWidget {
                       const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 28),
                       const SizedBox(width: 8),
                       Text(
-                        '${streak.currentStreak}-Day Streak! Keep it burning 🔥',
+                        '${streak.currentStreak}-day streak. Keep it going.',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -136,7 +136,7 @@ class WorkoutSummaryScreen extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    '🏆 Personal Records Hit!',
+                    'New personal records',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -212,7 +212,7 @@ class WorkoutSummaryScreen extends StatelessWidget {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Color(0xFF1F1B16),
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),

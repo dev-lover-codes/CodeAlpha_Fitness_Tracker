@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
+import 'package:fit_track/core/providers/plan_provider.dart';
 
 class NutritionTargets {
   final int calories;
@@ -37,10 +38,19 @@ final nutritionTargetsProvider = NotifierProvider<NutritionTargetsNotifier, Nutr
 class NutritionTargetsNotifier extends Notifier<NutritionTargets> {
   @override
   NutritionTargets build() {
-    // Initial default state
+    // Start from targets worked out from the profile; saved custom targets override them.
+    final suggested = ref.watch(suggestedNutritionProvider);
     final userId = ref.watch(authServiceProvider).currentUser?.id ?? '';
     if (userId.isNotEmpty) {
       _loadTargets(userId);
+    }
+    if (suggested != null) {
+      return NutritionTargets(
+        calories: suggested.calories,
+        proteinG: suggested.proteinG,
+        carbsG: suggested.carbsG,
+        fatG: suggested.fatG,
+      );
     }
     return const NutritionTargets(calories: 2000, proteinG: 150, carbsG: 200, fatG: 70);
   }

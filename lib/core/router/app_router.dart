@@ -23,6 +23,7 @@ import '../../features/exercises/views/exercise_detail_screen.dart';
 import '../../features/exercises/views/create_custom_exercise_screen.dart';
 import '../../features/goals/views/goals_screen.dart';
 import '../../features/goals/views/create_goal_screen.dart';
+import '../../features/plan/views/plan_screen.dart';
 import '../../main.dart';
 
 /// Provider exposing the reactive GoRouter configuration.
@@ -216,6 +217,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CreateCustomExerciseScreen(),
       ),
       GoRoute(
+        path: '/plan',
+        builder: (context, state) => const PlanScreen(),
+      ),
+      GoRoute(
         path: '/goals',
         builder: (context, state) => const GoalsScreen(),
       ),
@@ -246,9 +251,9 @@ class MainScaffold extends StatelessWidget {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.fitness_center_outlined),

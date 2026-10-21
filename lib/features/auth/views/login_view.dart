@@ -113,22 +113,22 @@ class _LoginViewState extends ConsumerState<LoginView> {
               children: [
                 // Top Fitness Brand Icon
                 Icon(
-                  Icons.flash_on_rounded,
+                  Icons.fitness_center_rounded,
                   size: 64,
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'FITTRACK',
+                  'FitTrack',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -1.0,
+                    letterSpacing: -0.5,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Log in to continue your fitness journey',
+                  'Welcome back. Pick up where you left off.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
@@ -214,7 +214,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1F1B16),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -225,7 +225,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          child: CircularProgressIndicator(color: Color(0xFF1F1B16), strokeWidth: 2.5),
                         )
                       : const Text(
                           'Log In',

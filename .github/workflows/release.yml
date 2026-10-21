@@ -78,9 +78,10 @@ jobs:
             ## FitTrack Mobile App (${{ steps.release_info.outputs.tag }})
 
             ### What's New
-            - Supabase Authentication (Email/Password & Google Sign-In with OAuth redirect support)
-            - Real-time fitness tracking & workout logging
-            - Automated cloud database keep-alive & health checks
+            - Personal plan built from your profile: weekly sessions, sets and reps, picked exercises
+            - Suggested daily calories, protein and water based on your goal
+            - Start any planned session in one tap, pre-filled with exercises
+            - Fresh, warmer look and friendlier wording throughout the app
 
             ### Download & Installation
             Download the attached Android APK (`FitTrack-${{ steps.release_info.outputs.tag }}.apk` or `app-release.apk`) to install directly on your Android device.

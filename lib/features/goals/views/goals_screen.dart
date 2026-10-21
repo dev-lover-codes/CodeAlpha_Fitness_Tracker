@@ -60,7 +60,7 @@ class GoalsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.go('/goals/new'),
         backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Colors.black,
+        foregroundColor: Color(0xFF1F1B16),
         child: const Icon(Icons.add_rounded),
       ),
       body: goalsAsync.when(
@@ -90,8 +90,8 @@ class GoalsScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                       onPressed: () => context.go('/goals/new'),
-                      icon: const Icon(Icons.add_rounded, color: Colors.black),
-                      label: const Text('Set Your First Goal', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.add_rounded, color: Color(0xFF1F1B16)),
+                      label: const Text('Set your first goal', style: TextStyle(color: Color(0xFF1F1B16), fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.primary),
                     ),
                   ],
@@ -117,7 +117,7 @@ class GoalsScreen extends ConsumerWidget {
               ],
               if (completedGoals.isNotEmpty) ...[
                 Text(
-                  'Completed Goals 🏆 (${completedGoals.length})',
+                  'Completed (${completedGoals.length})',
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -300,7 +300,7 @@ class GoalsScreen extends ConsumerWidget {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Colors.black,
+                foregroundColor: Color(0xFF1F1B16),
                 minimumSize: const Size(120, 48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

@@ -158,7 +158,7 @@ class ExerciseDetailScreen extends ConsumerWidget {
                               theme,
                               label: _capitalize(exercise.category),
                               color: theme.colorScheme.primary,
-                              textColor: Colors.black,
+                              textColor: Color(0xFF1F1B16),
                             ),
                             _buildInfoChip(
                               theme,
@@ -258,7 +258,7 @@ class ExerciseDetailScreen extends ConsumerWidget {
 
                   // Personal Bests Table
                   Text(
-                    '🏆 Personal Bests',
+                    'Your best lifts',
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
@@ -408,7 +408,7 @@ class ExerciseDetailScreen extends ConsumerWidget {
               radius: 4,
               color: theme.colorScheme.primary,
               strokeWidth: 2,
-              strokeColor: Colors.black,
+              strokeColor: Color(0xFF1F1B16),
             ),
           ),
           belowBarData: BarAreaData(

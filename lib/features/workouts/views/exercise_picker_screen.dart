@@ -36,10 +36,10 @@ class _ExercisePickerScreenState extends ConsumerState<ExercisePickerScreen> {
                   }
                   Navigator.pop(context);
                 },
-                icon: const Icon(Icons.check_rounded, color: Colors.black),
+                icon: const Icon(Icons.check_rounded, color: Color(0xFF1F1B16)),
                 label: Text(
                   'Add (${_selectedExercises.length})',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1F1B16)),
                 ),
                 style: TextButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,

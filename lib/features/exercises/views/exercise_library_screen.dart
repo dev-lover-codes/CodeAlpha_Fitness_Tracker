@@ -11,7 +11,7 @@ class ExerciseLibraryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Exercise Library',
+          'Exercises',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [

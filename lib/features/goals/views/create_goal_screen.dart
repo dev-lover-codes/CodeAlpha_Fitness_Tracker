@@ -97,7 +97,7 @@ class _CreateGoalScreenState extends ConsumerState<CreateGoalScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal created!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Goal set. Go get it.')),
         );
         context.go('/goals');
       }
@@ -262,7 +262,7 @@ class _CreateGoalScreenState extends ConsumerState<CreateGoalScreen> {
                 onPressed: _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Color(0xFF1F1B16),
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),

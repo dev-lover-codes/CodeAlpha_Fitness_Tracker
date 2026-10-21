@@ -119,7 +119,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                 onPressed: () => _finishWorkout(context),
                 style: TextButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Color(0xFF1F1B16),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -181,10 +181,10 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.add_rounded, color: Colors.black),
+                  icon: const Icon(Icons.add_rounded, color: Color(0xFF1F1B16)),
                   label: const Text(
                     'Add Exercise',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1F1B16)),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
@@ -218,11 +218,24 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    exerciseName,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        exerciseName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (workoutExercise.notes != null && workoutExercise.notes!.isNotEmpty)
+                        Text(
+                          workoutExercise.notes!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -498,7 +511,7 @@ class _WorkoutSetRowState extends State<WorkoutSetRow> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: widget.set.completed ? Colors.black : theme.textTheme.bodyMedium?.color,
+                  color: widget.set.completed ? Color(0xFF1F1B16) : theme.textTheme.bodyMedium?.color,
                 ),
               ),
             ),
@@ -680,7 +693,7 @@ class _WorkoutSetRowState extends State<WorkoutSetRow> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: isSelected ? Colors.black : null,
+                        color: isSelected ? Color(0xFF1F1B16) : null,
                       ),
                     ),
                   ),

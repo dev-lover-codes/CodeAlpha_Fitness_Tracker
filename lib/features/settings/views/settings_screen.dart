@@ -53,7 +53,7 @@ class SettingsScreen extends ConsumerWidget {
                 if (context.mounted) {
                   Navigator.pop(context); // Close spinner
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password updated successfully!'), backgroundColor: Colors.green),
+                    const SnackBar(content: Text('Password changed.')),
                   );
                 }
               } catch (e) {
@@ -132,7 +132,7 @@ class SettingsScreen extends ConsumerWidget {
                 if (context.mounted) {
                   Navigator.pop(context); // Close spinner
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Your account has been deleted.'), backgroundColor: Colors.green),
+                    const SnackBar(content: Text('Your account has been deleted.')),
                   );
                   context.go('/login');
                 }

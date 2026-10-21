@@ -46,7 +46,7 @@ class AsyncValueWidget<T> extends StatelessWidget {
                   label: const Text('Try Again'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1F1B16),
                   ),
                 ),
               ],

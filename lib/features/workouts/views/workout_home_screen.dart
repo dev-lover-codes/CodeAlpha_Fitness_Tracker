@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fit_track/core/providers/workouts_provider.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
 import 'package:fit_track/core/utils/formatters.dart';
+import 'package:fit_track/features/plan/views/plan_screen.dart';
 
 class WorkoutHomeScreen extends ConsumerWidget {
   const WorkoutHomeScreen({super.key});
@@ -26,7 +27,7 @@ class WorkoutHomeScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.library_books_rounded),
             onPressed: () => context.go('/exercises'),
-            tooltip: 'Exercise Library',
+            tooltip: 'Exercises',
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -46,6 +47,8 @@ class WorkoutHomeScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const PlanSessionsStrip(),
+              const SizedBox(height: 20),
               // Start Workout Section
               Card(
                 color: theme.brightness == Brightness.dark
@@ -65,14 +68,14 @@ class WorkoutHomeScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Start a New Session',
+                        'Or do your own thing',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Log your training in real-time, customize sets, and beat your personal records.',
+                        'Start empty and add exercises as you go.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.brightness == Brightness.dark
                               ? Colors.grey[400]
@@ -92,7 +95,7 @@ class WorkoutHomeScreen extends ConsumerWidget {
                               // Start a new empty workout
                               ref
                                   .read(activeWorkoutProvider.notifier)
-                                  .startWorkout('Empty Workout', currentUser.id);
+                                  .startWorkout('Workout', currentUser.id);
                               context.go('/workouts/active');
                             }
                           } else {
@@ -103,7 +106,7 @@ class WorkoutHomeScreen extends ConsumerWidget {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: Colors.black, // Dark text on electric green
+                          foregroundColor: Color(0xFF1F1B16),
                           minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -113,10 +116,10 @@ class WorkoutHomeScreen extends ConsumerWidget {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_rounded, size: 24, color: Colors.black),
+                            Icon(Icons.add_rounded, size: 24, color: Color(0xFF1F1B16)),
                             SizedBox(width: 8),
                             Text(
-                              'Start Empty Workout',
+                              'Start empty workout',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

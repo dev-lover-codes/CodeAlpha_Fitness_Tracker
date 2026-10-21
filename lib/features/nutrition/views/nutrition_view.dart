@@ -45,7 +45,7 @@ class _NutritionViewState extends ConsumerState<NutritionView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nutrition Log', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Food', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddFoodSheet,

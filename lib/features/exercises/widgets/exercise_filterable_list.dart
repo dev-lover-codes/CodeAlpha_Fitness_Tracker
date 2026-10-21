@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fit_track/core/models/exercise.dart';
 import 'package:fit_track/core/providers/exercises_provider.dart';
+import 'package:fit_track/core/providers/plan_provider.dart';
 
 class ExerciseFilterableList extends ConsumerStatefulWidget {
   final bool isPickerMode;
@@ -149,7 +150,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                     ref.read(exerciseFiltersProvider.notifier).updateSearchQuery(val);
                   },
                   decoration: InputDecoration(
-                    hintText: 'Search exercise library...',
+                    hintText: 'Search exercises',
                     prefixIcon: const Icon(Icons.search_rounded),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -232,7 +233,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                   selectedColor: theme.colorScheme.primary,
                   showCheckmark: false,
                   labelStyle: TextStyle(
-                    color: filters.favoritesOnly ? Colors.black : null,
+                    color: filters.favoritesOnly ? Color(0xFF1F1B16) : null,
                     fontWeight: filters.favoritesOnly ? FontWeight.bold : null,
                   ),
                 ),
@@ -250,7 +251,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                     selectedColor: theme.colorScheme.primary,
                     showCheckmark: false,
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.black : null,
+                      color: isSelected ? Color(0xFF1F1B16) : null,
                       fontWeight: isSelected ? FontWeight.bold : null,
                     ),
                   ),
@@ -297,7 +298,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                     children: [
                       Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[400]),
                       const SizedBox(height: 12),
-                      Text('No exercises fit selected criteria.', style: TextStyle(color: Colors.grey[500])),
+                      Text('Nothing matches those filters.', style: TextStyle(color: Colors.grey[500])),
                     ],
                   ),
                 );
@@ -385,17 +386,31 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              _capitalize(exercise.muscleGroup),
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            Flexible(
+              child: Text(
+                _capitalize(exercise.muscleGroup),
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
+            if (ref.watch(recommendedExerciseIdsProvider).contains(exercise.id)) ...[
+              const SizedBox(width: 8),
+              Text(
+                'For you',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
           ],
         ),
         trailing: widget.isPickerMode
             ? Checkbox(
                 value: isSelected,
                 activeColor: theme.colorScheme.primary,
-                checkColor: Colors.black,
+                checkColor: Color(0xFF1F1B16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                 onChanged: (checked) {
                   widget.onExerciseSelected?.call(exercise, checked == true);
@@ -458,7 +473,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                       child: Checkbox(
                         value: isSelected,
                         activeColor: theme.colorScheme.primary,
-                        checkColor: Colors.black,
+                        checkColor: Color(0xFF1F1B16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         onChanged: (checked) {
                           widget.onExerciseSelected?.call(exercise, checked == true);
@@ -600,7 +615,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                                 onSelected: (_) => filterNotifier.toggleDifficulty(diff),
                                 selectedColor: theme.colorScheme.primary,
                                 showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Colors.black : null),
+                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
                               );
                             }).toList(),
                           ),
@@ -619,7 +634,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                                 onSelected: (_) => filterNotifier.toggleMuscleGroup(muscle),
                                 selectedColor: theme.colorScheme.primary,
                                 showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Colors.black : null),
+                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
                               );
                             }).toList(),
                           ),
@@ -637,7 +652,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                                 onSelected: (_) => filterNotifier.toggleCategory(cat),
                                 selectedColor: theme.colorScheme.primary,
                                 showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Colors.black : null),
+                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
                               );
                             }).toList(),
                           ),
@@ -656,7 +671,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                                 onSelected: (_) => filterNotifier.toggleEquipment(eq),
                                 selectedColor: theme.colorScheme.primary,
                                 showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Colors.black : null),
+                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
                               );
                             }).toList(),
                           ),
@@ -672,7 +687,7 @@ class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList>
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: Colors.black,
+                          foregroundColor: Color(0xFF1F1B16),
                           minimumSize: const Size(double.infinity, 52),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),

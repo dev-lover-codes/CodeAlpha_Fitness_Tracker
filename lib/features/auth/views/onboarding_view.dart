@@ -32,49 +32,52 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
   // Step 3 values
   String _selectedActivityLevel = 'Moderately Active';
 
+  static const Map<String, IconData> _goalIcons = {
+    'lose_weight': Icons.trending_down_rounded,
+    'build_muscle': Icons.fitness_center_rounded,
+    'maintain': Icons.balance_rounded,
+    'endurance': Icons.directions_run_rounded,
+  };
+
   final List<Map<String, String>> _goals = [
     {
       'key': 'lose_weight',
-      'title': 'Lose Weight',
-      'description': 'Burn fat and increase cardiovascular health',
-      'icon': '🔥',
+      'title': 'Lose weight',
+      'description': 'Drop some fat, feel lighter, keep the muscle',
     },
     {
       'key': 'build_muscle',
-      'title': 'Build Muscle',
-      'description': 'Gain strength and hypertrophy muscular size',
-      'icon': '💪',
+      'title': 'Build muscle',
+      'description': 'Get stronger and put on size',
     },
     {
       'key': 'maintain',
-      'title': 'Maintain Fit',
-      'description': 'Stabilize body weight and optimize overall wellness',
-      'icon': '⚖️',
+      'title': 'Stay fit',
+      'description': "Happy where you are. Just want to keep it that way",
     },
     {
       'key': 'endurance',
-      'title': 'Endurance',
-      'description': 'Improve stamina and long-duration performance',
-      'icon': '🏃',
+      'title': 'Build endurance',
+      'description': 'Run, ride or swim further without gassing out',
     },
   ];
 
   final List<Map<String, String>> _activityLevels = [
     {
       'name': 'Sedentary',
-      'description': 'Little to no exercise, desk job',
+      'description': 'Mostly sitting. Desk job, not much exercise',
     },
     {
       'name': 'Lightly Active',
-      'description': 'Light exercise/sports 1-3 days/week',
+      'description': 'Some walking or a workout 1–3 times a week',
     },
     {
       'name': 'Moderately Active',
-      'description': 'Moderate exercise/sports 3-5 days/week',
+      'description': 'Training 3–5 times a week',
     },
     {
       'name': 'Very Active',
-      'description': 'Hard exercise/sports 6-7 days/week',
+      'description': 'Training hard most days',
     },
   ];
 
@@ -177,7 +180,7 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Setup Profile (${_currentPage + 1}/3)'),
+        title: Text('Step ${_currentPage + 1} of 3'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -241,17 +244,17 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
                         : (_currentPage == 2 ? _submitOnboarding : _nextPage),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: theme.colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            child: CircularProgressIndicator(color: theme.colorScheme.onPrimary, strokeWidth: 2),
                           )
-                        : Text(_currentPage == 2 ? 'Get Started' : 'Continue'),
+                        : Text(_currentPage == 2 ? 'Build my plan' : 'Next'),
                   ),
                 ],
               ),
@@ -273,13 +276,13 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Tell us about yourself',
+              'First, a bit about you',
               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'This data helps us calculate metabolic burn rates and construct plans.',
+              "We use this to set your calories and pick exercises that suit you. It stays private.",
               style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodySmall?.color),
               textAlign: TextAlign.center,
             ),
@@ -374,13 +377,13 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Select your main goal',
+            "What are you working towards?",
             style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            'We will tailor your home dashboard targets to this objective.',
+            "Pick the one that matters most right now. You can change it later.",
             style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodySmall?.color),
             textAlign: TextAlign.center,
           ),
@@ -406,9 +409,10 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
                 margin: const EdgeInsets.symmetric(vertical: 8),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
-                  leading: Text(
-                    goal['icon']!,
-                    style: const TextStyle(fontSize: 32),
+                  leading: Icon(
+                    _goalIcons[goal['key']],
+                    size: 28,
+                    color: isSelected ? theme.colorScheme.primary : null,
                   ),
                   title: Text(
                     goal['title']!,
@@ -450,13 +454,13 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'What is your activity level?',
+            'How active are you these days?',
             style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            'This informs our baseline daily calorie and energy expenditure estimates.',
+            "Be honest. This decides how many days a week your plan has.",
             style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodySmall?.color),
             textAlign: TextAlign.center,
           ),

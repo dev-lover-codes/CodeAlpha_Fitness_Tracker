@@ -12,6 +12,7 @@ import 'package:fit_track/core/providers/auth_provider.dart';
 import 'package:fit_track/core/providers/repository_providers.dart';
 import 'package:fit_track/core/providers/profile_provider.dart';
 import 'package:fit_track/core/providers/goals_provider.dart';
+import 'package:fit_track/core/services/plan_engine.dart';
 
 class PersonalRecord {
   final String exerciseName;
@@ -111,6 +112,45 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
       startedAt: DateTime.now(),
       createdAt: DateTime.now(),
       exercises: const [],
+    );
+    _saveToPrefs();
+  }
+
+  /// Starts a workout pre-filled with exercises and sets from the user's plan.
+  void startPlannedWorkout(String name, String userId, List<PlannedExercise> planned) {
+    final workoutId = 'temp_workout_${_uuid.v4()}';
+    final exercises = <WorkoutExercise>[];
+    for (var i = 0; i < planned.length; i++) {
+      final p = planned[i];
+      final weId = 'temp_exercise_${_uuid.v4()}';
+      final isTimed = p.exercise.category != 'strength' || p.prescription.reps.contains('sec');
+      exercises.add(WorkoutExercise(
+        id: weId,
+        workoutId: workoutId,
+        exerciseId: p.exercise.id,
+        orderIndex: i,
+        exercise: p.exercise,
+        notes: 'Plan: ${p.prescription.label}',
+        sets: List.generate(
+          p.prescription.sets.clamp(1, 6),
+          (s) => WorkoutSet(
+            id: 'temp_set_${_uuid.v4()}',
+            workoutExerciseId: weId,
+            setNumber: s + 1,
+            reps: isTimed ? 1 : p.prescription.startingReps,
+            weightKg: 0.0,
+            completed: false,
+          ),
+        ),
+      ));
+    }
+    state = Workout(
+      id: workoutId,
+      userId: userId,
+      name: name,
+      startedAt: DateTime.now(),
+      createdAt: DateTime.now(),
+      exercises: exercises,
     );
     _saveToPrefs();
   }

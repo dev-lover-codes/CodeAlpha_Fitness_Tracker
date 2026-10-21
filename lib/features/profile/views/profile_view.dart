@@ -68,7 +68,7 @@ class ProfileView extends ConsumerWidget {
         if (context.mounted) {
           Navigator.pop(context); // Close loading dialog
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Avatar updated successfully!'), backgroundColor: Colors.green),
+            const SnackBar(content: Text('Photo updated.')),
           );
         }
       }
@@ -91,7 +91,7 @@ class ProfileView extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('You', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_rounded),
@@ -150,7 +150,7 @@ class ProfileView extends ConsumerWidget {
                               CircleAvatar(
                                 radius: 18,
                                 backgroundColor: theme.colorScheme.primary,
-                                child: const Icon(Icons.camera_alt_rounded, size: 18, color: Colors.black),
+                                child: const Icon(Icons.camera_alt_rounded, size: 18, color: Color(0xFF1F1B16)),
                               ),
                             ],
                           ),
@@ -227,8 +227,8 @@ class ProfileView extends ConsumerWidget {
                 // Actions Section
                 ElevatedButton.icon(
                   onPressed: () => context.go('/profile/edit'),
-                  icon: const Icon(Icons.edit_rounded, color: Colors.black),
-                  label: const Text('Edit Profile & Goals', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.edit_rounded, color: Color(0xFF1F1B16)),
+                  label: const Text('Edit your details', style: TextStyle(color: Color(0xFF1F1B16), fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     minimumSize: const Size(double.infinity, 54),

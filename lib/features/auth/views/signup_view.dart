@@ -68,7 +68,7 @@ class _SignupViewState extends ConsumerState<SignupView> {
           builder: (ctx) => AlertDialog(
             title: const Text('Check Your Email'),
             content: const Text(
-              'A verification email has been sent. Please confirm your email address before logging in.',
+              "Check your inbox. We sent a link to confirm your email, then you can log in.",
             ),
             actions: [
               TextButton(
@@ -154,7 +154,7 @@ class _SignupViewState extends ConsumerState<SignupView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Join FitTrack today',
+                  'Create your account',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -162,7 +162,7 @@ class _SignupViewState extends ConsumerState<SignupView> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Establish your profile to start tracking metrics',
+                  "Takes a minute. Then we'll build your first plan.",
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
@@ -312,7 +312,7 @@ class _SignupViewState extends ConsumerState<SignupView> {
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1F1B16),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -323,7 +323,7 @@ class _SignupViewState extends ConsumerState<SignupView> {
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          child: CircularProgressIndicator(color: Color(0xFF1F1B16), strokeWidth: 2.5),
                         )
                       : const Text(
                           'Create Account',

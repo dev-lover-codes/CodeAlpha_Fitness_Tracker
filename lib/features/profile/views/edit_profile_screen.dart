@@ -33,12 +33,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String? _activityLevel;
 
   final List<String> _genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
-  final List<String> _goalOptions = [
-    'Lose Weight',
-    'Maintain Weight',
-    'Build Muscle',
-    'Improve Endurance'
-  ];
+  // Keys match the fitness_goal_type enum in the database.
+  final Map<String, String> _goalOptions = const {
+    'lose_weight': 'Lose weight',
+    'maintain': 'Stay fit',
+    'build_muscle': 'Build muscle',
+    'endurance': 'Build endurance',
+  };
+  late final List<String> _initialTargets;
   final List<String> _activityOptions = [
     'Sedentary',
     'Lightly Active',
@@ -64,7 +66,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     _gender = profile?.gender;
     _dateOfBirth = profile?.dateOfBirth;
-    _fitnessGoal = profile?.fitnessGoal;
+    _fitnessGoal = _goalOptions.containsKey(profile?.fitnessGoal) ? profile?.fitnessGoal : null;
+    _initialTargets = [
+      _caloriesController.text,
+      _proteinController.text,
+      _carbsController.text,
+      _fatController.text,
+    ];
     _activityLevel = profile?.activityLevel;
   }
 
@@ -111,22 +119,35 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       await ref.read(profileRepositoryProvider).updateProfile(updatedProfile);
       ref.invalidate(profileProvider);
 
-      // 2. Update Nutrition Targets
-      await ref.read(nutritionTargetsProvider.notifier).updateTargets(
-            NutritionTargets(
-              calories: int.tryParse(_caloriesController.text) ?? 2000,
-              proteinG: int.tryParse(_proteinController.text) ?? 150,
-              carbsG: int.tryParse(_carbsController.text) ?? 200,
-              fatG: int.tryParse(_fatController.text) ?? 70,
-            ),
-          );
+      // 2. Only pin custom nutrition targets if the user actually changed them.
+      // Otherwise they keep following the plan as the profile changes.
+      final currentTargets = [
+        _caloriesController.text,
+        _proteinController.text,
+        _carbsController.text,
+        _fatController.text,
+      ];
+      if (currentTargets.join('|') != _initialTargets.join('|')) {
+        await ref.read(nutritionTargetsProvider.notifier).updateTargets(
+              NutritionTargets(
+                calories: int.tryParse(_caloriesController.text) ?? 2000,
+                proteinG: int.tryParse(_proteinController.text) ?? 150,
+                carbsG: int.tryParse(_carbsController.text) ?? 200,
+                fatG: int.tryParse(_fatController.text) ?? 70,
+              ),
+            );
+      }
 
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Saved. Your plan has been updated.')),
         );
-        context.go('/profile');
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/profile');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -233,7 +254,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               DropdownButtonFormField<String>(
                 initialValue: _fitnessGoal,
                 decoration: const InputDecoration(labelText: 'Fitness Goal', border: OutlineInputBorder()),
-                items: _goalOptions.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                items: _goalOptions.entries
+                    .map((g) => DropdownMenuItem(value: g.key, child: Text(g.value)))
+                    .toList(),
                 onChanged: (val) => setState(() => _fitnessGoal = val),
               ),
               const SizedBox(height: 16),
@@ -298,7 +321,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 onPressed: _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Color(0xFF1F1B16),
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),

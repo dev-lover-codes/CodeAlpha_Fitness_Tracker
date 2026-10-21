@@ -96,7 +96,7 @@ class _CreateCustomExerciseScreenState extends ConsumerState<CreateCustomExercis
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Custom exercise created successfully!'),
+            content: Text('Added to your exercises.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -252,7 +252,7 @@ class _CreateCustomExerciseScreenState extends ConsumerState<CreateCustomExercis
                       onPressed: _submitForm,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: Colors.black,
+                        foregroundColor: Color(0xFF1F1B16),
                         minimumSize: const Size(double.infinity, 56),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),

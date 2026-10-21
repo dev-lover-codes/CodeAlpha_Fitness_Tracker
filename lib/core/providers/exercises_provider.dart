@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fit_track/core/models/exercise.dart';
 import 'package:fit_track/core/providers/repository_providers.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
+import 'package:fit_track/core/providers/plan_provider.dart';
 
 /// Notifier managing the set of favorite exercise IDs, with optimistic updates.
 final favoriteExerciseIdsProvider = AsyncNotifierProvider<FavoriteExercisesNotifier, List<String>>(() {
@@ -163,6 +164,7 @@ final filteredExercisesProvider = Provider<AsyncValue<List<Exercise>>>((ref) {
   final allAsync = ref.watch(allExercisesProvider);
   final filters = ref.watch(exerciseFiltersProvider);
   final favoritesAsync = ref.watch(favoriteExerciseIdsProvider);
+  final recommended = ref.watch(recommendedExerciseIdsProvider);
 
   return allAsync.when(
     data: (exercises) {
@@ -208,12 +210,19 @@ final filteredExercisesProvider = Provider<AsyncValue<List<Exercise>>>((ref) {
         return true;
       }).toList();
 
-      // Sort: Favorites first, then alphabetical
+      // Sort: favorites first, then exercises picked for this user, then alphabetical.
+      int rank(String id) {
+        final i = recommended.indexOf(id);
+        return i == -1 ? 1 << 20 : i;
+      }
+
       filtered.sort((a, b) {
         final isAFav = favorites.contains(a.id);
         final isBFav = favorites.contains(b.id);
         if (isAFav && !isBFav) return -1;
         if (!isAFav && isBFav) return 1;
+        final r = rank(a.id).compareTo(rank(b.id));
+        if (r != 0) return r;
         return a.name.compareTo(b.name);
       });
 

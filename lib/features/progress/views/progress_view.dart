@@ -41,7 +41,7 @@ class _ProgressViewState extends ConsumerState<ProgressView> with SingleTickerPr
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Progress Tracking', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Progress', style: TextStyle(fontWeight: FontWeight.bold)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/home'),
@@ -106,7 +106,7 @@ class _BodyStatsTabState extends ConsumerState<_BodyStatsTab> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showLogMeasurementSheet(context, null),
         backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Colors.black,
+        foregroundColor: Color(0xFF1F1B16),
         child: const Icon(Icons.add_rounded),
       ),
       body: measurementsAsync.when(
@@ -164,7 +164,7 @@ class _BodyStatsTabState extends ConsumerState<_BodyStatsTab> {
                         return Padding(
                           padding: const EdgeInsets.only(left: 4.0),
                           child: ChoiceChip(
-                            label: Text(range, style: TextStyle(fontSize: 10, color: isSelected ? Colors.black : null)),
+                            label: Text(range, style: TextStyle(fontSize: 10, color: isSelected ? Color(0xFF1F1B16) : null)),
                             selected: isSelected,
                             onSelected: (val) {
                               if (val) {
@@ -391,7 +391,7 @@ class _BodyStatsTabState extends ConsumerState<_BodyStatsTab> {
               radius: 4,
               color: theme.colorScheme.primary,
               strokeWidth: 2,
-              strokeColor: Colors.black,
+              strokeColor: Color(0xFF1F1B16),
             ),
           ),
         ),
@@ -710,7 +710,7 @@ class MeasurementFormSheetState extends ConsumerState<MeasurementFormSheet> {
                   onPressed: _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.black,
+                    foregroundColor: Color(0xFF1F1B16),
                     minimumSize: const Size(double.infinity, 52),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
@@ -797,7 +797,7 @@ class _PhotosTabState extends ConsumerState<_PhotosTab> {
       if (!context.mounted) return;
       Navigator.pop(context); // Pop loading spinner
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Progress photo uploaded!'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('Photo saved.')),
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -826,7 +826,7 @@ class _PhotosTabState extends ConsumerState<_PhotosTab> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _addPhoto(context),
         backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Colors.black,
+        foregroundColor: Color(0xFF1F1B16),
         child: const Icon(Icons.add_a_photo_rounded),
       ),
       body: photosAsync.when(
@@ -957,7 +957,7 @@ class _PhotosTabState extends ConsumerState<_PhotosTab> {
                                           radius: 12,
                                           backgroundColor: isSel ? theme.colorScheme.primary : Colors.white24,
                                           child: isSel
-                                              ? const Icon(Icons.check_rounded, size: 14, color: Colors.black)
+                                              ? const Icon(Icons.check_rounded, size: 14, color: Color(0xFF1F1B16))
                                               : const Text('?', style: TextStyle(fontSize: 10, color: Colors.white)),
                                         ),
                                       ),

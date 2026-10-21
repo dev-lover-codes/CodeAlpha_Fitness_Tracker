@@ -158,14 +158,14 @@ class _ForgotPasswordViewState extends ConsumerState<ForgotPasswordView> {
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1F1B16),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const CircularProgressIndicator(color: Color(0xFF1F1B16))
                       : const Text(
                           'Send Reset Link',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

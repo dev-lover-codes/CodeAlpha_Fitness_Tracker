@@ -143,8 +143,8 @@ class NotificationService {
 
       await _plugin.zonedSchedule(
         id: notificationId,
-        title: 'Time to Workout! 🏋️',
-        body: 'Keep up the consistency and log your workout session today.',
+        title: "Today's session is waiting",
+        body: 'Even a short one counts. Open the app to see what is planned.',
         scheduledDate: tzScheduled,
         notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -202,8 +202,8 @@ class NotificationService {
 
       await _plugin.zonedSchedule(
         id: notificationId,
-        title: 'Protect your ${streak.currentStreak}-Day Streak! 🔥',
-        body: "You haven't logged a workout today yet. Don't let your active streak reset!",
+        title: "Don't lose your ${streak.currentStreak}-day streak",
+        body: "Nothing logged yet today. A quick session keeps it alive.",
         scheduledDate: tzScheduled,
         notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -275,7 +275,7 @@ class NotificationService {
         await _plugin.zonedSchedule(
           id: 2000 + count,
           title: 'Goal Deadline Approaching!',
-          body: 'Your $typeTitle is due in 3 days. Let\'s make a final push!',
+          body: 'Your $typeTitle is due in 3 days.',
           scheduledDate: tzScheduled,
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
