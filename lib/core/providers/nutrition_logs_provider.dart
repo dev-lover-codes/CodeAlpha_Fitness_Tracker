@@ -10,6 +10,7 @@ final nutritionLogsProvider = AsyncNotifierProvider<NutritionLogsNotifier, List<
 class NutritionLogsNotifier extends AsyncNotifier<List<NutritionLog>> {
   @override
   Future<List<NutritionLog>> build() async {
+    ref.watch(authStateProvider);
     return _fetchLogs();
   }
 

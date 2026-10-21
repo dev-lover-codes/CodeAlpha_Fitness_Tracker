@@ -42,6 +42,17 @@ class Streak {
     );
   }
 
+  /// The streak as it stands today. The stored value only changes when a
+  /// workout is saved, so after a missed day it would otherwise look alive.
+  int activeStreak([DateTime? now]) {
+    final last = lastWorkoutDate;
+    if (last == null) return 0;
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final lastDay = DateTime(last.year, last.month, last.day);
+    return today.difference(lastDay).inDays > 1 ? 0 : currentStreak;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

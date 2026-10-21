@@ -26,6 +26,10 @@ class FakeWorkoutRepository implements WorkoutRepository {
   }
 
   @override
+  Future<int> getWorkoutCount(String userId) async =>
+      workouts.where((w) => w.userId == userId).length;
+
+  @override
   Future<void> deleteWorkout(String workoutId) async {
     workouts.removeWhere((w) => w.id == workoutId);
   }

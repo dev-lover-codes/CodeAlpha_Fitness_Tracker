@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
+import 'package:fit_track/core/providers/exercises_provider.dart';
 import 'package:fit_track/core/providers/plan_provider.dart';
 import 'package:fit_track/core/providers/workouts_provider.dart';
 import 'package:fit_track/core/services/plan_engine.dart';
+import 'package:fit_track/core/ui/ui.dart';
 
 class PlanScreen extends ConsumerWidget {
   const PlanScreen({super.key});
@@ -12,81 +14,82 @@ class PlanScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final planAsync = ref.watch(fitnessPlanProvider);
-    final doneThisWeek = ref.watch(workoutsThisWeekProvider);
+    final done = ref.watch(workoutsThisWeekProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your plan'),
         actions: [
-          TextButton(
-            onPressed: () => context.push('/profile/edit'),
-            child: const Text('Edit details'),
-          ),
+          TextButton(onPressed: () => context.push('/profile/edit'), child: const Text('Change my details')),
+          const SizedBox(width: 8),
         ],
       ),
       body: planAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text("Couldn't load your plan. Pull down on the home screen to retry.\n\n$e",
-                textAlign: TextAlign.center),
-          ),
-        ),
+        loading: () => const Loading(),
+        error: (e, _) => ErrorNote(error: e, onRetry: () => ref.invalidate(allExercisesProvider)),
         data: (plan) {
           if (plan == null) {
-            return const Center(child: Text('Finish your profile and your plan will show up here.'));
+            return const EmptyNote(title: 'No plan yet', message: 'Finish setting up your profile first.');
           }
           return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+            padding: const EdgeInsets.only(bottom: 40),
             children: [
-              _Summary(plan: plan),
-              const SizedBox(height: 28),
-              _SectionTitle('This week', trailing: '$doneThisWeek of ${plan.daysPerWeek} done'),
-              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Your week', style: context.text.headlineLarge),
+                    const SizedBox(height: 8),
+                    Text(_summary(plan), style: context.text.bodyLarge!.copyWith(color: context.palette.muted)),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        Tag(goalLabel(plan.goal)),
+                        Tag(experienceLabel(plan.experience)),
+                        Tag('${plan.daysPerWeek} days a week'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SectionLabel('Sessions · $done of ${plan.week.length} done'),
               for (var i = 0; i < plan.week.length; i++)
-                _SessionTile(
-                  index: i,
-                  session: plan.week[i],
-                  done: i < doneThisWeek,
-                  isNext: i == doneThisWeek,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _SessionCard(index: i, session: plan.week[i], done: i < done, next: i == done),
                 ),
               if (plan.nutrition != null) ...[
-                const SizedBox(height: 28),
-                const _SectionTitle('Eating'),
-                const SizedBox(height: 10),
-                _NutritionCard(n: plan.nutrition!, goal: plan.goal),
+                const SectionLabel('Eating'),
+                _Nutrition(n: plan.nutrition!),
               ],
-              const SizedBox(height: 28),
-              const _SectionTitle('A few notes'),
-              const SizedBox(height: 10),
-              for (final note in plan.notes)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              const SectionLabel('Worth knowing'),
+              Padding(
+                padding: kPage,
+                child: Column(
+                  children: [
+                    for (final note in plan.notes)
                       Padding(
-                        padding: const EdgeInsets.only(top: 7, right: 12),
-                        child: Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, right: 12),
+                              child: Text('—', style: context.text.bodyMedium!.copyWith(color: context.palette.faint)),
+                            ),
+                            Expanded(child: Text(note, style: context.text.bodyMedium)),
+                          ],
                         ),
                       ),
-                      Expanded(child: Text(note, style: const TextStyle(height: 1.45))),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 16),
-              Text(
-                'This plan is a starting point, not medical advice. If something hurts (the bad kind), stop and swap it out.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                    const SizedBox(height: 4),
+                    Text(
+                      'A starting point, not medical advice. If something hurts (the bad kind), stop and swap it out.',
+                      style: context.text.bodySmall,
                     ),
+                  ],
+                ),
               ),
             ],
           );
@@ -94,155 +97,77 @@ class PlanScreen extends ConsumerWidget {
       ),
     );
   }
+
+  static String _summary(FitnessPlan plan) => switch (plan.goal) {
+        FitnessGoal.loseWeight => 'Strength work to keep your muscle, cardio to move the needle.',
+        FitnessGoal.buildMuscle => 'Lifting, a little heavier each week. Rest days do the building.',
+        FitnessGoal.endurance => 'Mostly cardio, plus strength work to keep you injury-free.',
+        FitnessGoal.maintain => 'A balanced mix. Nothing extreme, easy to keep up.',
+      };
 }
 
-class _Summary extends StatelessWidget {
-  final FitnessPlan plan;
-  const _Summary({required this.plan});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final headline = switch (plan.goal) {
-      FitnessGoal.loseWeight => 'Strength plus cardio, ${plan.daysPerWeek} days a week.',
-      FitnessGoal.buildMuscle => 'Lifting ${plan.daysPerWeek} days a week, getting a little stronger each time.',
-      FitnessGoal.endurance => 'Mostly cardio, with strength work to keep you injury-free.',
-      FitnessGoal.maintain => 'A balanced mix, ${plan.daysPerWeek} days a week. Nothing crazy.',
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(headline, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700, height: 1.2)),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _Pill(goalLabel(plan.goal)),
-            _Pill(experienceLabel(plan.experience)),
-            _Pill('${plan.daysPerWeek} days / week'),
-            if (plan.bmi != null) _Pill('BMI ${plan.bmi!.toStringAsFixed(1)}'),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  const _Pill(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Text(label, style: theme.textTheme.labelMedium),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final String? trailing;
-  const _SectionTitle(this.title, {this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-        ),
-        if (trailing != null)
-          Text(trailing!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              )),
-      ],
-    );
-  }
-}
-
-class _SessionTile extends ConsumerWidget {
+class _SessionCard extends ConsumerWidget {
   final int index;
   final PlannedSession session;
   final bool done;
-  final bool isNext;
+  final bool next;
 
-  const _SessionTile({required this.index, required this.session, required this.done, required this.isNext});
+  const _SessionCard({required this.index, required this.session, required this.done, required this.next});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: isNext
-          ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: BorderSide(color: theme.colorScheme.primary, width: 1.5),
-            )
-          : null,
-      clipBehavior: Clip.antiAlias,
+    final p = context.palette;
+    return Panel(
+      padding: EdgeInsets.zero,
+      borderColor: next ? p.ink : null,
       child: Theme(
-        data: theme.copyWith(dividerColor: Colors.transparent),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          initiallyExpanded: isNext,
-          leading: CircleAvatar(
-            radius: 16,
-            backgroundColor: done
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface.withValues(alpha: 0.06),
-            child: done
-                ? Icon(Icons.check_rounded, size: 18, color: theme.colorScheme.onPrimary)
-                : Text('${index + 1}', style: theme.textTheme.labelLarge),
-          ),
-          title: Text(session.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('${session.focus} · about ${session.estimatedMinutes} min'),
+          initiallyExpanded: next,
+          tilePadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          iconColor: p.muted,
+          collapsedIconColor: p.faint,
+          leading: Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: done ? p.accent : Colors.transparent,
+              border: done ? null : Border.all(color: next ? p.ink : p.line),
+            ),
+            child: done
+                ? Icon(Icons.check, size: 16, color: p.onAccent)
+                : Text('${index + 1}', style: context.text.labelMedium),
+          ),
+          title: Text(session.name, style: context.text.titleMedium),
+          subtitle: Text('${session.focus} · ~${session.estimatedMinutes} min', style: context.text.bodySmall),
           children: [
-            for (final p in session.exercises)
+            for (final e in session.exercises)
               InkWell(
-                onTap: () => context.push('/exercises/detail/${p.exercise.id}'),
+                onTap: () => context.push('/exercises/detail/${e.exercise.id}'),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
                   child: Row(
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(p.exercise.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 2),
-                            Text(
-                              p.reason,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
+                            Text(e.exercise.name, style: context.text.bodyMedium!.copyWith(fontWeight: FontWeight.w600)),
+                            Text(e.reason, style: context.text.bodySmall),
                           ],
                         ),
                       ),
-                      Text(p.prescription.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 12),
+                      Text(e.prescription.label, style: context.text.labelMedium),
                     ],
                   ),
                 ),
               ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => startPlannedSession(context, ref, session),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: const Text('Start this session'),
-              ),
-            ),
+            const SizedBox(height: 10),
+            PrimaryButton(label: 'Start this session', onPressed: () => startPlannedSession(context, ref, session)),
           ],
         ),
       ),
@@ -250,152 +175,122 @@ class _SessionTile extends ConsumerWidget {
   }
 }
 
-class _NutritionCard extends StatelessWidget {
+class _Nutrition extends StatelessWidget {
   final NutritionSuggestion n;
-  final FitnessGoal goal;
-  const _NutritionCard({required this.n, required this.goal});
+  const _Nutrition({required this.n});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.6);
     final diff = n.calories - n.maintenanceCalories;
-    final diffText = diff == 0
-        ? 'Roughly what your body burns in a day.'
+    final note = diff == 0
+        ? 'About what your body burns in a day.'
         : diff < 0
-            ? 'About ${-diff} under what you burn, for slow and steady loss.'
-            : 'About $diff over what you burn, to fuel training.';
-
-    Widget macro(String label, String value) => Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            ? 'About ${-diff} under what you burn, for slow, steady loss.'
+            : 'About $diff over what you burn, to fuel the training.';
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stat(value: '${n.calories}', unit: 'kcal a day', label: note, large: true),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 14),
+          Row(
             children: [
-              Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              Text(label, style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+              Expanded(child: Stat(value: '${n.proteinG}', unit: 'g', label: 'Protein')),
+              Expanded(child: Stat(value: '${n.carbsG}', unit: 'g', label: 'Carbs')),
+              Expanded(child: Stat(value: '${n.fatG}', unit: 'g', label: 'Fat')),
+              Expanded(child: Stat(value: trimNum(n.waterLitres), unit: 'L', label: 'Water')),
             ],
           ),
-        );
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('${n.calories}',
-                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(width: 6),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: Text('kcal a day', style: TextStyle(color: muted)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(diffText, style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                macro('protein', '${n.proteinG} g'),
-                macro('carbs', '${n.carbsG} g'),
-                macro('fat', '${n.fatG} g'),
-                macro('water', '${n.waterLitres} L'),
-              ],
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-/// Starts a planned session, asking first if another workout is already running.
+/// This week's planned sessions as a compact list (used on the Train tab).
+class PlanSessionsStrip extends ConsumerWidget {
+  const PlanSessionsStrip({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.palette;
+    final plan = ref.watch(fitnessPlanProvider).value;
+    final done = ref.watch(workoutsThisWeekProvider);
+    if (plan == null || plan.week.isEmpty) return const SizedBox.shrink();
+    final nextIndex = done % plan.week.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionLabel('From your plan', action: 'Details', onAction: () => context.push('/plan')),
+        PanelList(children: [
+          for (var i = 0; i < plan.week.length; i++)
+            ListRow(
+              leading: Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i < done ? p.accent : Colors.transparent,
+                  border: i < done ? null : Border.all(color: i == nextIndex ? p.ink : p.line),
+                ),
+                child: i < done
+                    ? Icon(Icons.check, size: 15, color: p.onAccent)
+                    : Text('${i + 1}', style: context.text.labelMedium),
+              ),
+              title: plan.week[i].name,
+              subtitle: '${plan.week[i].exercises.length} exercises · ~${plan.week[i].estimatedMinutes} min',
+              trailing: i == nextIndex
+                  ? FilledButton(
+                      style: FilledButton.styleFrom(minimumSize: const Size(0, 38), padding: const EdgeInsets.symmetric(horizontal: 16)),
+                      onPressed: () => startPlannedSession(context, ref, plan.week[i]),
+                      child: const Text('Start'),
+                    )
+                  : null,
+              onTap: () => startPlannedSession(context, ref, plan.week[i]),
+            ),
+        ]),
+      ],
+    );
+  }
+}
+
+/// Starts a planned session, checking first whether another one is running.
 Future<void> startPlannedSession(BuildContext context, WidgetRef ref, PlannedSession session) async {
   final user = ref.read(authServiceProvider).currentUser;
   if (user == null) return;
 
   final active = ref.read(activeWorkoutProvider);
   if (active != null) {
-    final replace = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('You have a workout going'),
-        content: Text('Finish "${active.name}" first, or throw it away and start ${session.name}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Go back to it')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start new')),
-        ],
-      ),
+    final replace = await confirmAction(
+      context,
+      title: '${active.name} is still going',
+      message: 'Start ${session.name} instead? The unfinished workout will be thrown away.',
+      confirmLabel: 'Start new',
+      destructive: true,
     );
     if (!context.mounted) return;
-    if (replace != true) {
-      context.go('/workouts/active');
+    if (!replace) {
+      context.push('/workouts/active');
       return;
     }
   }
 
   ref.read(activeWorkoutProvider.notifier).startPlannedWorkout(session.name, user.id, session.exercises);
-  context.go('/workouts/active');
+  context.push('/workouts/active');
 }
 
-/// Compact list of this week's planned sessions, used on the Workouts tab.
-class PlanSessionsStrip extends ConsumerWidget {
-  const PlanSessionsStrip({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final plan = ref.watch(fitnessPlanProvider).value;
-    final done = ref.watch(workoutsThisWeekProvider);
-    if (plan == null || plan.week.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text('From your plan',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            ),
-            TextButton(onPressed: () => context.push('/plan'), child: const Text('Details')),
-          ],
-        ),
-        for (var i = 0; i < plan.week.length; i++)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              leading: CircleAvatar(
-                radius: 15,
-                backgroundColor: i < done
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.06),
-                child: i < done
-                    ? Icon(Icons.check_rounded, size: 16, color: theme.colorScheme.onPrimary)
-                    : Text('${i + 1}', style: theme.textTheme.labelMedium),
-              ),
-              title: Text(plan.week[i].name, style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                '${plan.week[i].exercises.length} exercises · ~${plan.week[i].estimatedMinutes} min',
-              ),
-              trailing: i == done % plan.week.length
-                  ? FilledButton(
-                      onPressed: () => startPlannedSession(context, ref, plan.week[i]),
-                      child: const Text('Start'),
-                    )
-                  : IconButton(
-                      tooltip: 'Start',
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      onPressed: () => startPlannedSession(context, ref, plan.week[i]),
-                    ),
-            ),
-          ),
-      ],
-    );
+/// Starts an empty workout (or resumes the one already running).
+void startEmptyWorkout(BuildContext context, WidgetRef ref) {
+  final user = ref.read(authServiceProvider).currentUser;
+  if (user == null) return;
+  if (ref.read(activeWorkoutProvider) == null) {
+    final h = DateTime.now().hour;
+    final name = h < 12 ? 'Morning workout' : h < 17 ? 'Afternoon workout' : 'Evening workout';
+    ref.read(activeWorkoutProvider.notifier).startWorkout(name, user.id);
   }
+  context.push('/workouts/active');
 }

@@ -37,7 +37,7 @@ class ProgressPhoto {
       id: json['id'] as String,
       userId: json['user_id'] as String,
       photoUrl: json['photo_url'] as String,
-      loggedAt: DateTime.parse(json['logged_at'] as String),
+      loggedAt: DateTime.parse(json['logged_at'] as String).toLocal(),
       notes: json['notes'] as String?,
     );
   }
@@ -47,7 +47,7 @@ class ProgressPhoto {
       'id': id,
       'user_id': userId,
       'photo_url': photoUrl,
-      'logged_at': loggedAt.toIso8601String(),
+      'logged_at': loggedAt.toUtc().toIso8601String(),
       'notes': notes,
     };
   }

@@ -8,7 +8,7 @@ class WorkoutRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   /// Fetches a user's past workouts, including exercises and sets.
-  Future<List<Workout>> getWorkouts(String userId, {int limit = 20, int offset = 0}) async {
+  Future<List<Workout>> getWorkouts(String userId, {int limit = 100, int offset = 0}) async {
     try {
       final List<dynamic> data = await _supabase
           .from('workouts')
@@ -23,8 +23,19 @@ class WorkoutRepository {
     }
   }
 
+  /// Total number of workouts the user has logged (not limited by paging).
+  Future<int> getWorkoutCount(String userId) async {
+    try {
+      return await _supabase.from('workouts').count(CountOption.exact).eq('user_id', userId);
+    } catch (e) {
+      throw AppException("Failed to count workouts: ${e.toString()}", e);
+    }
+  }
+
   /// Inserts a complete workout session (workout header + exercises + sets).
+  /// If anything fails part-way, the half-saved workout is removed again.
   Future<Workout> createWorkout(Workout workout) async {
+    String? createdId;
     try {
       // 1. Insert parent workout record
       final workoutJson = workout.toJson();
@@ -40,6 +51,7 @@ class WorkoutRepository {
           .single();
       
       final String workoutId = insertedWorkoutData['id'] as String;
+      createdId = workoutId;
 
       // 2. Insert exercises and sets
       final List<WorkoutExercise> savedExercises = [];
@@ -85,6 +97,11 @@ class WorkoutRepository {
 
       return Workout.fromJson(insertedWorkoutData).copyWith(exercises: savedExercises);
     } catch (e) {
+      if (createdId != null) {
+        try {
+          await _supabase.from('workouts').delete().eq('id', createdId);
+        } catch (_) {}
+      }
       throw AppException("Failed to save workout session: ${e.toString()}", e);
     }
   }

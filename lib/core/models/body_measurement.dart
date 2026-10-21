@@ -60,7 +60,7 @@ class BodyMeasurement {
     return BodyMeasurement(
       id: json['id'] as String,
       userId: json['user_id'] as String,
-      loggedAt: DateTime.parse(json['logged_at'] as String),
+      loggedAt: DateTime.parse(json['logged_at'] as String).toLocal(),
       weightKg: json['weight_kg'] != null ? (json['weight_kg'] as num).toDouble() : null,
       bodyFatPercent: json['body_fat_percent'] != null ? (json['body_fat_percent'] as num).toDouble() : null,
       chestCm: json['chest_cm'] != null ? (json['chest_cm'] as num).toDouble() : null,
@@ -76,7 +76,7 @@ class BodyMeasurement {
     return {
       'id': id,
       'user_id': userId,
-      'logged_at': loggedAt.toIso8601String(),
+      'logged_at': loggedAt.toUtc().toIso8601String(),
       'weight_kg': weightKg,
       'body_fat_percent': bodyFatPercent,
       'chest_cm': chestCm,

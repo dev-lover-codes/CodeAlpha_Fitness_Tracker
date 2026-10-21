@@ -44,6 +44,12 @@ class FakeAuthService implements AuthService {
   Future<Map<String, dynamic>?> getUserProfile(String userId) async => null;
 
   @override
+  Future<void> updatePassword(String newPassword) async {}
+
+  @override
+  Future<void> deleteAccount() async {}
+
+  @override
   Future<void> updateProfile({
     required String userId,
     required double heightCm,

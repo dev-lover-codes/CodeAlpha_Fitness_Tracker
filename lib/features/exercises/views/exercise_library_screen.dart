@@ -1,38 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fit_track/core/ui/ui.dart';
 import 'package:fit_track/features/exercises/widgets/exercise_filterable_list.dart';
 
-class ExerciseLibraryScreen extends ConsumerWidget {
+class ExerciseLibraryScreen extends StatelessWidget {
   const ExerciseLibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Exercises',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text('Exercises', style: context.text.headlineSmall),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: IconButton.filledTonal(
-              onPressed: () => context.go('/exercises/new'),
-              icon: const Icon(Icons.add_rounded),
-              tooltip: 'Create Custom Exercise',
-              style: IconButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+          TextButton.icon(
+            onPressed: () => context.push('/exercises/new'),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('New'),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: ExerciseFilterableList(
-        isPickerMode: false,
-        onExerciseTap: (exercise) {
-          context.go('/exercises/detail/${exercise.id}');
-        },
+        onExerciseTap: (exercise) => context.push('/exercises/detail/${exercise.id}'),
       ),
     );
   }

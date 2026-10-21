@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fit_track/core/models/exercise.dart';
 import 'package:fit_track/core/providers/exercises_provider.dart';
 import 'package:fit_track/core/providers/plan_provider.dart';
+import 'package:fit_track/core/ui/ui.dart';
 
+/// Searchable exercise list used by the library and the "add exercise" picker.
 class ExerciseFilterableList extends ConsumerStatefulWidget {
   final bool isPickerMode;
   final Set<Exercise> selectedExercises;
@@ -22,694 +24,176 @@ class ExerciseFilterableList extends ConsumerStatefulWidget {
   ConsumerState<ExerciseFilterableList> createState() => _ExerciseFilterableListState();
 }
 
+class _Filter {
+  final String key;
+  final String label;
+  final bool Function(Exercise e, List<String> favs, List<String> picks) test;
+  const _Filter(this.key, this.label, this.test);
+}
+
+final _filters = <_Filter>[
+  _Filter('all', 'All', (e, f, r) => true),
+  _Filter('foryou', 'For you', (e, f, r) => r.contains(e.id)),
+  _Filter('starred', 'Starred', (e, f, r) => f.contains(e.id)),
+  _Filter('chest', 'Chest', (e, f, r) => e.muscleGroup == 'chest'),
+  _Filter('back', 'Back', (e, f, r) => e.muscleGroup == 'back'),
+  _Filter('legs', 'Legs', (e, f, r) => e.muscleGroup == 'legs' && e.category == 'strength'),
+  _Filter('shoulders', 'Shoulders', (e, f, r) => e.muscleGroup == 'shoulders'),
+  _Filter('arms', 'Arms', (e, f, r) => e.muscleGroup == 'arms'),
+  _Filter('core', 'Core', (e, f, r) => e.muscleGroup == 'core'),
+  _Filter('cardio', 'Cardio', (e, f, r) => e.category == 'cardio'),
+  _Filter('stretch', 'Stretching', (e, f, r) => e.category == 'flexibility'),
+  _Filter('mine', 'Mine', (e, f, r) => e.isCustom),
+];
+
 class _ExerciseFilterableListState extends ConsumerState<ExerciseFilterableList> {
-  bool _isGridView = false;
-  final TextEditingController _searchController = TextEditingController();
-
-  final List<String> _categories = ['strength', 'cardio', 'flexibility', 'sports'];
-  final List<String> _muscleGroups = [
-    'chest',
-    'back',
-    'legs',
-    'shoulders',
-    'arms',
-    'core',
-    'full_body',
-    'cardio'
-  ];
-  final List<String> _equipmentList = [
-    'Barbell',
-    'Dumbbell',
-    'Cable',
-    'Machine',
-    'Bodyweight',
-    'EZ Bar',
-    'Bench'
-  ];
-  final List<String> _difficulties = ['beginner', 'intermediate', 'advanced'];
-
-  @override
-  void initState() {
-    super.initState();
-    final filters = ref.read(exerciseFiltersProvider);
-    _searchController.text = filters.searchQuery;
-  }
+  final _search = TextEditingController();
+  String _filter = 'all';
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _search.dispose();
     super.dispose();
-  }
-
-  Color _getMuscleColor(String muscle) {
-    switch (muscle.toLowerCase()) {
-      case 'chest':
-        return Colors.blue;
-      case 'back':
-        return Colors.orange;
-      case 'legs':
-        return Colors.purple;
-      case 'shoulders':
-        return Colors.teal;
-      case 'arms':
-        return Colors.amber;
-      case 'core':
-        return Colors.pink;
-      case 'full_body':
-        return Colors.indigo;
-      case 'cardio':
-        return Colors.deepOrange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getMuscleIcon(String muscle) {
-    switch (muscle.toLowerCase()) {
-      case 'chest':
-        return Icons.layers_rounded;
-      case 'back':
-        return Icons.format_align_center_rounded;
-      case 'legs':
-        return Icons.directions_walk_rounded;
-      case 'shoulders':
-        return Icons.accessibility_new_rounded;
-      case 'arms':
-        return Icons.fitness_center_rounded;
-      case 'core':
-        return Icons.adjust_rounded;
-      case 'full_body':
-        return Icons.person_rounded;
-      case 'cardio':
-        return Icons.directions_run_rounded;
-      default:
-        return Icons.help_outline_rounded;
-    }
-  }
-
-  Color _getDifficultyColor(String diff) {
-    switch (diff.toLowerCase()) {
-      case 'beginner':
-        return Colors.green;
-      case 'intermediate':
-        return Colors.orange;
-      case 'advanced':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _capitalize(String text) {
-    if (text.isEmpty) return text;
-    return text.replaceAll('_', ' ').split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredAsync = ref.watch(filteredExercisesProvider);
-    final filters = ref.watch(exerciseFiltersProvider);
-    final favoritesAsync = ref.watch(favoriteExerciseIdsProvider);
-    final favorites = favoritesAsync.value ?? [];
-    final theme = Theme.of(context);
+    final p = context.palette;
+    final allAsync = ref.watch(allExercisesProvider);
+    final favs = ref.watch(favoriteExerciseIdsProvider).value ?? const <String>[];
+    final picks = ref.watch(recommendedExerciseIdsProvider);
+    final filter = _filters.firstWhere((f) => f.key == _filter);
 
     return Column(
       children: [
-        // Search & Toggle Row
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (val) {
-                    ref.read(exerciseFiltersProvider.notifier).updateSearchQuery(val);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search exercises',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded),
-                            onPressed: () {
-                              _searchController.clear();
-                              ref.read(exerciseFiltersProvider.notifier).updateSearchQuery('');
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.dark
-                        ? theme.colorScheme.surface
-                        : Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              
-              // View Grid/List toggle
-              IconButton.filledTonal(
-                onPressed: () {
-                  setState(() {
-                    _isGridView = !_isGridView;
-                  });
-                },
-                icon: Icon(
-                  _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
-                ),
-                style: IconButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-
-              const SizedBox(width: 4),
-
-              // Filter sheet trigger
-              IconButton.filledTonal(
-                onPressed: () => _showFilterSheet(context),
-                icon: Badge(
-                  isLabelVisible: !filters.isEmpty,
-                  label: Text('${_getFilterCount(filters)}'),
-                  child: const Icon(Icons.tune_rounded),
-                ),
-                style: IconButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  backgroundColor: filters.isEmpty ? null : theme.colorScheme.primary.withValues(alpha: 0.2),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Quick Category Chips (Horizontal Scroll)
-        SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: FilterChip(
-                  label: const Row(
-                    children: [
-                      Icon(Icons.star_rounded, size: 16, color: Colors.amber),
-                      SizedBox(width: 4),
-                      Text('Favorites'),
-                    ],
-                  ),
-                  selected: filters.favoritesOnly,
-                  onSelected: (_) {
-                    ref.read(exerciseFiltersProvider.notifier).toggleFavoritesOnly();
-                  },
-                  selectedColor: theme.colorScheme.primary,
-                  showCheckmark: false,
-                  labelStyle: TextStyle(
-                    color: filters.favoritesOnly ? Color(0xFF1F1B16) : null,
-                    fontWeight: filters.favoritesOnly ? FontWeight.bold : null,
-                  ),
-                ),
-              ),
-              ..._categories.map((cat) {
-                final isSelected = filters.categories.contains(cat);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: FilterChip(
-                    label: Text(_capitalize(cat)),
-                    selected: isSelected,
-                    onSelected: (_) {
-                      ref.read(exerciseFiltersProvider.notifier).toggleCategory(cat);
-                    },
-                    selectedColor: theme.colorScheme.primary,
-                    showCheckmark: false,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Color(0xFF1F1B16) : null,
-                      fontWeight: isSelected ? FontWeight.bold : null,
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Active combinable tags display (if filters aren't empty)
-        if (!filters.isEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Filters active',
-                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                ),
-                TextButton(
-                  onPressed: () {
-                    ref.read(exerciseFiltersProvider.notifier).clearAll();
-                    _searchController.clear();
-                  },
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
-                  child: const Text('Clear All'),
-                ),
-              ],
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+          child: TextField(
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Search exercises',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(_search.clear)),
             ),
           ),
-        ],
-
-        // Exercises Display
+        ),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            scrollDirection: Axis.horizontal,
+            itemCount: _filters.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
+            itemBuilder: (_, i) => Center(
+              child: Pill(
+                label: _filters[i].label,
+                selected: _filters[i].key == _filter,
+                onTap: () => setState(() => _filter = _filters[i].key),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Expanded(
-          child: filteredAsync.when(
-            data: (exercises) {
-              if (exercises.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 12),
-                      Text('Nothing matches those filters.', style: TextStyle(color: Colors.grey[500])),
-                    ],
-                  ),
-                );
+          child: allAsync.when(
+            loading: () => const Loading(),
+            error: (e, _) => ErrorNote(error: e, onRetry: () => ref.invalidate(allExercisesProvider)),
+            data: (all) {
+              final q = _search.text.trim().toLowerCase();
+              final list = all.where((e) {
+                if (q.isNotEmpty &&
+                    !e.name.toLowerCase().contains(q) &&
+                    !(e.equipment ?? '').toLowerCase().contains(q) &&
+                    !e.muscleGroup.contains(q)) {
+                  return false;
+                }
+                return filter.test(e, favs, picks);
+              }).toList();
+
+              // Starred first, then the plan's picks, then A–Z.
+              int rank(Exercise e) {
+                if (favs.contains(e.id)) return -1000;
+                final i = picks.indexOf(e.id);
+                return i == -1 ? 0 : i - 500;
               }
 
-              return _isGridView
-                  ? GridView.builder(
-                      padding: const EdgeInsets.all(12),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 1.15,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
-                      itemCount: exercises.length,
-                      itemBuilder: (context, idx) {
-                        final exercise = exercises[idx];
-                        return _buildExerciseGridCard(exercise, favorites, theme);
-                      },
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: exercises.length,
-                      separatorBuilder: (context, idx) => const SizedBox(height: 8),
-                      itemBuilder: (context, idx) {
-                        final exercise = exercises[idx];
-                        return _buildExerciseListCard(exercise, favorites, theme);
-                      },
-                    );
+              list.sort((a, b) {
+                final r = rank(a).compareTo(rank(b));
+                return r != 0 ? r : a.name.compareTo(b.name);
+              });
+
+              if (list.isEmpty) {
+                return ListView(children: [
+                  const SizedBox(height: 12),
+                  EmptyNote(
+                    title: 'Nothing matches',
+                    message: q.isEmpty ? 'Try another filter.' : 'Try a shorter word, like "press" or "row".',
+                  ),
+                ]);
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.only(bottom: 32),
+                itemCount: list.length,
+                separatorBuilder: (_, _) => Divider(indent: 20, endIndent: 20, color: p.line),
+                itemBuilder: (_, i) => _row(list[i], favs.contains(list[i].id), picks.contains(list[i].id)),
+              );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Center(child: Text('Error: ${err.toString()}')),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildExerciseListCard(Exercise exercise, List<String> favorites, ThemeData theme) {
-    final isFav = favorites.contains(exercise.id);
-    final isSelected = widget.selectedExercises.contains(exercise);
-    final muscleColor = _getMuscleColor(exercise.muscleGroup);
-
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: isSelected
-            ? BorderSide(color: theme.colorScheme.primary, width: 2)
-            : BorderSide.none,
-      ),
-      child: ListTile(
-        onTap: () {
-          if (widget.isPickerMode) {
-            widget.onExerciseSelected?.call(exercise, !isSelected);
-          } else {
-            widget.onExerciseTap?.call(exercise);
-          }
-        },
-        leading: CircleAvatar(
-          backgroundColor: muscleColor.withValues(alpha: 0.12),
-          child: Icon(_getMuscleIcon(exercise.muscleGroup), color: muscleColor, size: 20),
-        ),
-        title: Text(
-          exercise.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: _getDifficultyColor(exercise.difficulty).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                _capitalize(exercise.difficulty),
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: _getDifficultyColor(exercise.difficulty),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                _capitalize(exercise.muscleGroup),
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (ref.watch(recommendedExerciseIdsProvider).contains(exercise.id)) ...[
-              const SizedBox(width: 8),
-              Text(
-                'For you',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ],
-        ),
-        trailing: widget.isPickerMode
-            ? Checkbox(
-                value: isSelected,
-                activeColor: theme.colorScheme.primary,
-                checkColor: Color(0xFF1F1B16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                onChanged: (checked) {
-                  widget.onExerciseSelected?.call(exercise, checked == true);
-                },
-              )
-            : IconButton(
-                icon: Icon(
-                  isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                  color: isFav ? Colors.amber : Colors.grey,
-                ),
-                onPressed: () {
-                  ref.read(favoriteExerciseIdsProvider.notifier).toggleFavorite(exercise.id);
-                },
-              ),
-      ),
-    );
-  }
-
-  Widget _buildExerciseGridCard(Exercise exercise, List<String> favorites, ThemeData theme) {
-    final isFav = favorites.contains(exercise.id);
-    final isSelected = widget.selectedExercises.contains(exercise);
-    final muscleColor = _getMuscleColor(exercise.muscleGroup);
+  Widget _row(Exercise e, bool starred, bool forYou) {
+    final p = context.palette;
+    final selected = widget.selectedExercises.any((s) => s.id == e.id);
+    final detail = [capitalize(e.muscleGroup), if ((e.equipment ?? '').isNotEmpty) e.equipment!].join(' · ');
 
     return InkWell(
-      onTap: () {
-        if (widget.isPickerMode) {
-          widget.onExerciseSelected?.call(exercise, !isSelected);
-        } else {
-          widget.onExerciseTap?.call(exercise);
-        }
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Card(
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: isSelected
-              ? BorderSide(color: theme.colorScheme.primary, width: 2)
-              : BorderSide(color: muscleColor.withValues(alpha: 0.2), width: 1),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Top Row: Icon + Star/Checkbox
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      onTap: () => widget.isPickerMode ? widget.onExerciseSelected?.call(e, !selected) : widget.onExerciseTap?.call(e),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: muscleColor.withValues(alpha: 0.12),
-                    child: Icon(_getMuscleIcon(exercise.muscleGroup), color: muscleColor, size: 16),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(e.name, style: context.text.bodyLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      if (forYou) ...[const SizedBox(width: 8), const Tag('For you', strong: true)],
+                      if (e.isCustom) ...[const SizedBox(width: 8), const Tag('Yours')],
+                    ],
                   ),
-                  if (widget.isPickerMode)
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Checkbox(
-                        value: isSelected,
-                        activeColor: theme.colorScheme.primary,
-                        checkColor: Color(0xFF1F1B16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                        onChanged: (checked) {
-                          widget.onExerciseSelected?.call(exercise, checked == true);
-                        },
-                      ),
-                    )
-                  else
-                    IconButton(
-                      constraints: const BoxConstraints(),
-                      padding: EdgeInsets.zero,
-                      icon: Icon(
-                        isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                        color: isFav ? Colors.amber : Colors.grey,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        ref.read(favoriteExerciseIdsProvider.notifier).toggleFavorite(exercise.id);
-                      },
-                    ),
+                  const SizedBox(height: 2),
+                  Text(detail, style: context.text.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
-              const SizedBox(height: 8),
-
-              // Title
-              Text(
-                exercise.name,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            ),
+            if (widget.isPickerMode)
+              Checkbox(value: selected, onChanged: (v) => widget.onExerciseSelected?.call(e, v == true))
+            else
+              IconButton(
+                tooltip: starred ? 'Unstar' : 'Star',
+                icon: Icon(starred ? Icons.star : Icons.star_border, color: starred ? p.warm : p.faint, size: 22),
+                onPressed: () async {
+                  try {
+                    await ref.read(favoriteExerciseIdsProvider.notifier).toggleFavorite(e.id);
+                  } catch (err) {
+                    if (mounted) showErrorToast(context, err);
+                  }
+                },
               ),
-
-              // Bottom details
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _capitalize(exercise.muscleGroup),
-                    style: TextStyle(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.w500),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _getDifficultyColor(exercise.difficulty).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      _capitalize(exercise.difficulty),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: _getDifficultyColor(exercise.difficulty),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          ],
         ),
-      ),
-    );
-  }
-
-  int _getFilterCount(ExerciseFilters filters) {
-    return filters.categories.length +
-        filters.muscleGroups.length +
-        filters.equipments.length +
-        filters.difficulties.length +
-        (filters.favoritesOnly ? 1 : 0);
-  }
-
-  void _showFilterSheet(BuildContext context) {
-    final theme = Theme.of(context);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) {
-        return Consumer(
-          builder: (context, ref, child) {
-            final currentFilters = ref.watch(exerciseFiltersProvider);
-            final filterNotifier = ref.read(exerciseFiltersProvider.notifier);
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.85,
-              maxChildSize: 0.95,
-              expand: false,
-              builder: (context, scrollController) {
-                return Column(
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'All Filters',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              filterNotifier.clearAll();
-                            },
-                            child: const Text('Reset All'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-
-                    // Filters Content
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.all(16.0),
-                        children: [
-                          // Favorites toggle
-                          SwitchListTile(
-                            title: const Text('Favorites Only', style: TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: const Text('Only show exercises starred by you'),
-                            value: currentFilters.favoritesOnly,
-                            onChanged: (_) {
-                              filterNotifier.toggleFavoritesOnly();
-                            },
-                            activeThumbColor: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Difficulty Header
-                          _buildSectionTitle('Difficulty'),
-                          Wrap(
-                            spacing: 8,
-                            children: _difficulties.map((diff) {
-                              final active = currentFilters.difficulties.contains(diff);
-                              return FilterChip(
-                                label: Text(_capitalize(diff)),
-                                selected: active,
-                                onSelected: (_) => filterNotifier.toggleDifficulty(diff),
-                                selectedColor: theme.colorScheme.primary,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Muscle Group Header
-                          _buildSectionTitle('Muscle Group'),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: _muscleGroups.map((muscle) {
-                              final active = currentFilters.muscleGroups.contains(muscle);
-                              return FilterChip(
-                                label: Text(_capitalize(muscle)),
-                                selected: active,
-                                onSelected: (_) => filterNotifier.toggleMuscleGroup(muscle),
-                                selectedColor: theme.colorScheme.primary,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Category Header
-                          _buildSectionTitle('Category'),
-                          Wrap(
-                            spacing: 8,
-                            children: _categories.map((cat) {
-                              final active = currentFilters.categories.contains(cat);
-                              return FilterChip(
-                                label: Text(_capitalize(cat)),
-                                selected: active,
-                                onSelected: (_) => filterNotifier.toggleCategory(cat),
-                                selectedColor: theme.colorScheme.primary,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Equipment Header
-                          _buildSectionTitle('Equipment'),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: _equipmentList.map((eq) {
-                              final active = currentFilters.equipments.contains(eq);
-                              return FilterChip(
-                                label: Text(eq),
-                                selected: active,
-                                onSelected: (_) => filterNotifier.toggleEquipment(eq),
-                                selectedColor: theme.colorScheme.primary,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(color: active ? Color(0xFF1F1B16) : null),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-
-                    // Apply Button
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: Color(0xFF1F1B16),
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }

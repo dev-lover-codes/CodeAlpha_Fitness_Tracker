@@ -58,7 +58,7 @@ class Goal {
       unit: json['unit'] as String,
       targetDate: json['target_date'] != null ? DateTime.parse(json['target_date'] as String) : null,
       status: json['status'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
     );
   }
 
@@ -72,7 +72,7 @@ class Goal {
       'unit': unit,
       'target_date': targetDate?.toIso8601String().substring(0, 10),
       'status': status,
-      'created_at': createdAt.toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
     };
   }
 }

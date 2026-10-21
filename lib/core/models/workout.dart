@@ -64,11 +64,11 @@ class Workout {
       userId: json['user_id'] as String,
       name: json['name'] as String,
       notes: json['notes'] as String?,
-      startedAt: DateTime.parse(json['started_at'] as String),
-      completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at'] as String) : null,
+      startedAt: DateTime.parse(json['started_at'] as String).toLocal(),
+      completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at'] as String).toLocal() : null,
       durationSeconds: json['duration_seconds'] as int?,
       totalVolumeKg: (json['total_volume_kg'] as num? ?? 0.0).toDouble(),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       exercises: parsedExercises,
     );
   }
@@ -79,11 +79,11 @@ class Workout {
       'user_id': userId,
       'name': name,
       'notes': notes,
-      'started_at': startedAt.toIso8601String(),
-      'completed_at': completedAt?.toIso8601String(),
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'completed_at': completedAt?.toUtc().toIso8601String(),
       'duration_seconds': durationSeconds,
       'total_volume_kg': totalVolumeKg,
-      'created_at': createdAt.toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
     };
   }
 }

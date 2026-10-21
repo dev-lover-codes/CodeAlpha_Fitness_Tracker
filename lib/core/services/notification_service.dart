@@ -17,8 +17,10 @@ class NotificationService {
   static const String goalChannelName = 'Goal Reminders';
   static const String goalChannelDesc = 'Reminders about goal deadlines';
 
+  late final Future<void> _ready;
+
   NotificationService() {
-    _init();
+    _ready = _init();
   }
 
   Future<void> _init() async {
@@ -49,6 +51,7 @@ class NotificationService {
     if (kIsWeb) return false;
     
     try {
+      await _ready;
       final androidImplementation = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       if (androidImplementation != null) {
@@ -76,6 +79,7 @@ class NotificationService {
     if (kIsWeb) return;
     try {
       await _plugin.cancelAll();
+      await _ready;
     } catch (e) {
       debugPrint("FitTrack: Cancel notifications error: $e");
     }
@@ -85,6 +89,7 @@ class NotificationService {
   Future<void> cancelId(int id) async {
     if (kIsWeb) return;
     try {
+      await _ready;
       await _plugin.cancel(id: id);
     } catch (e) {
       debugPrint("FitTrack: Cancel notification ID $id error: $e");
@@ -147,7 +152,7 @@ class NotificationService {
         body: 'Even a short one counts. Open the app to see what is planned.',
         scheduledDate: tzScheduled,
         notificationDetails: details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,
       );
       debugPrint("FitTrack: Scheduled workout reminder for $tzScheduled");
@@ -206,7 +211,7 @@ class NotificationService {
         body: "Nothing logged yet today. A quick session keeps it alive.",
         scheduledDate: tzScheduled,
         notificationDetails: details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
       debugPrint("FitTrack: Scheduled streak protective reminder for $tzScheduled");
     } catch (e) {
@@ -278,7 +283,7 @@ class NotificationService {
           body: 'Your $typeTitle is due in 3 days.',
           scheduledDate: tzScheduled,
           notificationDetails: details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         );
         count++;
         if (count >= 50) break; // Limit to 50 active goal reminders

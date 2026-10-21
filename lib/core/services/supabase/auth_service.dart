@@ -97,13 +97,56 @@ class AuthService {
     required String fitnessGoal,
     required String activityLevel,
   }) async {
-    await _supabase!.from('profiles').update({
+    // Upsert, not update: if the profile row is missing (e.g. it was removed
+    // earlier), an update would silently change nothing and onboarding would loop.
+    await _supabase!.from('profiles').upsert({
+      'id': userId,
       'height_cm': heightCm,
       'weight_kg': weightKg,
       'date_of_birth': dateOfBirth.toIso8601String().substring(0, 10),
       'gender': gender,
       'fitness_goal': fitnessGoal,
       'activity_level': activityLevel,
-    }).eq('id', userId);
+    });
+  }
+
+  /// Sets a new password for the signed-in user (also used after a reset link).
+  Future<void> updatePassword(String newPassword) async {
+    final client = _supabase;
+    if (client == null) throw Exception("Supabase is not initialized.");
+    await client.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  /// Permanently deletes the account.
+  ///
+  /// Prefers the `delete_my_account` database function (removes the login
+  /// itself). If that function hasn't been deployed yet, falls back to wiping
+  /// the user's data, which cascades to everything they logged.
+  Future<void> deleteAccount() async {
+    final client = _supabase;
+    final user = currentUser;
+    if (client == null || user == null) throw Exception("You're not signed in.");
+
+    // Remove stored photos first; the database rows don't own the files.
+    for (final bucket in ['progress-photos', 'avatars']) {
+      try {
+        final files = await client.storage.from(bucket).list(path: user.id);
+        if (files.isNotEmpty) {
+          await client.storage.from(bucket).remove(files.map((f) => '${user.id}/${f.name}').toList());
+        }
+      } catch (_) {}
+    }
+
+    try {
+      await client.rpc('delete_my_account');
+    } on PostgrestException catch (e) {
+      // Function missing (not migrated yet) → fall back to deleting data.
+      if (e.code == 'PGRST202' || e.code == '42883') {
+        await client.from('profiles').delete().eq('id', user.id);
+      } else {
+        rethrow;
+      }
+    }
+    await client.auth.signOut();
   }
 }

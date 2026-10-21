@@ -9,11 +9,15 @@ class NutritionTargets {
   final int carbsG;
   final int fatG;
 
+  /// True when the user typed their own numbers instead of using the plan's.
+  final bool custom;
+
   const NutritionTargets({
     required this.calories,
     required this.proteinG,
     required this.carbsG,
     required this.fatG,
+    this.custom = false,
   });
 
   NutritionTargets copyWith({
@@ -27,6 +31,7 @@ class NutritionTargets {
       proteinG: proteinG ?? this.proteinG,
       carbsG: carbsG ?? this.carbsG,
       fatG: fatG ?? this.fatG,
+      custom: custom,
     );
   }
 }
@@ -69,6 +74,7 @@ class NutritionTargetsNotifier extends Notifier<NutritionTargets> {
         proteinG: p ?? 150,
         carbsG: c ?? 200,
         fatG: f ?? 70,
+        custom: true,
       );
     }
   }
@@ -83,6 +89,23 @@ class NutritionTargetsNotifier extends Notifier<NutritionTargets> {
     await prefs.setInt('target_carbs_$userId', newTargets.carbsG);
     await prefs.setInt('target_fat_$userId', newTargets.fatG);
 
-    state = newTargets;
+    state = NutritionTargets(
+      calories: newTargets.calories,
+      proteinG: newTargets.proteinG,
+      carbsG: newTargets.carbsG,
+      fatG: newTargets.fatG,
+      custom: true,
+    );
+  }
+
+  /// Drops custom numbers and goes back to following the plan.
+  Future<void> useSuggested() async {
+    final userId = ref.read(authServiceProvider).currentUser?.id ?? '';
+    if (userId.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in ['calories', 'protein', 'carbs', 'fat']) {
+      await prefs.remove('target_${k}_$userId');
+    }
+    ref.invalidateSelf();
   }
 }

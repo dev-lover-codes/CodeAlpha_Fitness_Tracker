@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:fit_track/core/providers/auth_provider.dart';
+import 'package:fit_track/core/providers/nutrition_targets_provider.dart';
+import 'package:fit_track/core/providers/plan_provider.dart';
 import 'package:fit_track/core/providers/profile_provider.dart';
 import 'package:fit_track/core/providers/repository_providers.dart';
-import 'package:fit_track/core/providers/nutrition_targets_provider.dart';
+import 'package:fit_track/core/ui/ui.dart';
+import 'package:fit_track/core/utils/units.dart';
+import 'package:fit_track/features/auth/views/onboarding_view.dart' show goalOptions, activityOptions, validateHeight, validateWeight;
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -15,338 +20,249 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  late TextEditingController _fullNameController;
-  late TextEditingController _usernameController;
-  late TextEditingController _heightController;
-  late TextEditingController _weightController;
-
-  // Nutrition targets controllers
-  late TextEditingController _caloriesController;
-  late TextEditingController _proteinController;
-  late TextEditingController _carbsController;
-  late TextEditingController _fatController;
+  late final TextEditingController _name;
+  late final TextEditingController _username;
+  late final TextEditingController _height;
+  late final TextEditingController _weight;
+  late final TextEditingController _kcal;
+  late final TextEditingController _protein;
+  late final TextEditingController _carbs;
+  late final TextEditingController _fat;
 
   String? _gender;
-  DateTime? _dateOfBirth;
-  String? _fitnessGoal;
-  String? _activityLevel;
+  DateTime? _birthday;
+  String? _goal;
+  String? _activity;
+  late bool _customFood;
+  bool _busy = false;
 
-  final List<String> _genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
-  // Keys match the fitness_goal_type enum in the database.
-  final Map<String, String> _goalOptions = const {
-    'lose_weight': 'Lose weight',
-    'maintain': 'Stay fit',
-    'build_muscle': 'Build muscle',
-    'endurance': 'Build endurance',
-  };
-  late final List<String> _initialTargets;
-  final List<String> _activityOptions = [
-    'Sedentary',
-    'Lightly Active',
-    'Moderately Active',
-    'Very Active'
-  ];
+  static const _genders = ['Female', 'Male', 'Other', 'Prefer not to say'];
 
   @override
   void initState() {
     super.initState();
-    final profile = ref.read(profileProvider).value;
-    final nutrition = ref.read(nutritionTargetsProvider);
+    final p = ref.read(profileProvider).value;
+    final t = ref.read(nutritionTargetsProvider);
+    final units = ref.read(weightUnitProvider);
 
-    _fullNameController = TextEditingController(text: profile?.fullName ?? '');
-    _usernameController = TextEditingController(text: profile?.username ?? '');
-    _heightController = TextEditingController(text: profile?.heightCm?.toString() ?? '');
-    _weightController = TextEditingController(text: profile?.weightKg?.toString() ?? '');
+    _name = TextEditingController(text: p?.fullName ?? '');
+    _username = TextEditingController(text: p?.username ?? '');
+    _height = TextEditingController(text: p?.heightCm == null ? '' : trimNum(p!.heightCm!));
+    _weight = TextEditingController(text: p?.weightKg == null ? '' : units.number(p!.weightKg!));
+    _kcal = TextEditingController(text: '${t.calories}');
+    _protein = TextEditingController(text: '${t.proteinG}');
+    _carbs = TextEditingController(text: '${t.carbsG}');
+    _fat = TextEditingController(text: '${t.fatG}');
 
-    _caloriesController = TextEditingController(text: nutrition.calories.toString());
-    _proteinController = TextEditingController(text: nutrition.proteinG.toString());
-    _carbsController = TextEditingController(text: nutrition.carbsG.toString());
-    _fatController = TextEditingController(text: nutrition.fatG.toString());
-
-    _gender = profile?.gender;
-    _dateOfBirth = profile?.dateOfBirth;
-    _fitnessGoal = _goalOptions.containsKey(profile?.fitnessGoal) ? profile?.fitnessGoal : null;
-    _initialTargets = [
-      _caloriesController.text,
-      _proteinController.text,
-      _carbsController.text,
-      _fatController.text,
-    ];
-    _activityLevel = profile?.activityLevel;
+    _gender = _genders.contains(p?.gender) ? p?.gender : null;
+    _birthday = p?.dateOfBirth;
+    _goal = goalOptions.any((o) => o.value == p?.fitnessGoal) ? p?.fitnessGoal : null;
+    _activity = activityOptions.any((o) => o.value == p?.activityLevel) ? p?.activityLevel : null;
+    _customFood = t.custom;
   }
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _usernameController.dispose();
-    _heightController.dispose();
-    _weightController.dispose();
-    _caloriesController.dispose();
-    _proteinController.dispose();
-    _carbsController.dispose();
-    _fatController.dispose();
+    for (final c in [_name, _username, _height, _weight, _kcal, _protein, _carbs, _fat]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-
     final profile = ref.read(profileProvider).value;
     if (profile == null) return;
+    final units = ref.read(weightUnitProvider);
 
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
+    setState(() => _busy = true);
     try {
-      // 1. Update Profile in Supabase
-      final updatedProfile = profile.copyWith(
-        fullName: _fullNameController.text.trim(),
-        username: _usernameController.text.trim(),
-        gender: _gender,
-        dateOfBirth: _dateOfBirth,
-        heightCm: double.tryParse(_heightController.text),
-        weightKg: double.tryParse(_weightController.text),
-        fitnessGoal: _fitnessGoal,
-        activityLevel: _activityLevel,
-        updatedAt: DateTime.now(),
-      );
-
-      await ref.read(profileRepositoryProvider).updateProfile(updatedProfile);
+      await ref.read(profileRepositoryProvider).updateProfile(profile.copyWith(
+            fullName: _name.text.trim(),
+            username: _username.text.trim(),
+            gender: _gender,
+            dateOfBirth: _birthday,
+            heightCm: double.tryParse(_height.text.replaceAll(',', '.')),
+            weightKg: units.parse(_weight.text),
+            fitnessGoal: _goal,
+            activityLevel: _activity,
+          ));
       ref.invalidate(profileProvider);
+      ref.invalidate(userProfileProvider);
 
-      // 2. Only pin custom nutrition targets if the user actually changed them.
-      // Otherwise they keep following the plan as the profile changes.
-      final currentTargets = [
-        _caloriesController.text,
-        _proteinController.text,
-        _carbsController.text,
-        _fatController.text,
-      ];
-      if (currentTargets.join('|') != _initialTargets.join('|')) {
-        await ref.read(nutritionTargetsProvider.notifier).updateTargets(
-              NutritionTargets(
-                calories: int.tryParse(_caloriesController.text) ?? 2000,
-                proteinG: int.tryParse(_proteinController.text) ?? 150,
-                carbsG: int.tryParse(_carbsController.text) ?? 200,
-                fatG: int.tryParse(_fatController.text) ?? 70,
-              ),
-            );
+      final targets = ref.read(nutritionTargetsProvider.notifier);
+      if (_customFood) {
+        await targets.updateTargets(NutritionTargets(
+          calories: int.tryParse(_kcal.text) ?? 2000,
+          proteinG: int.tryParse(_protein.text) ?? 120,
+          carbsG: int.tryParse(_carbs.text) ?? 200,
+          fatG: int.tryParse(_fat.text) ?? 60,
+        ));
+      } else {
+        await targets.useSuggested();
       }
 
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved. Your plan has been updated.')),
-        );
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/profile');
-        }
-      }
+      if (!mounted) return;
+      showToast(context, 'Saved. Your plan has been updated.');
+      context.canPop() ? context.pop() : context.go('/profile');
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update profile: ${e.toString()}'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      final msg = friendlyError(e);
+      showToast(context, msg.contains('already exists') ? 'That username is taken. Try another.' : msg);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final units = ref.watch(weightUnitProvider);
+    final suggested = ref.watch(suggestedNutritionProvider);
+
+    Widget label(String t) => Padding(
+          padding: const EdgeInsets.only(top: 24, bottom: 10),
+          child: Text(t.toUpperCase(), style: context.text.labelSmall),
+        );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check_rounded),
-            onPressed: _save,
-            tooltip: 'Save Changes',
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // SECTION 1: Personal Info
-              _buildSectionHeader('Personal Information', theme),
-              const SizedBox(height: 12),
+      appBar: AppBar(),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          children: [
+            Text('Your details', style: context.text.headlineLarge),
+            const SizedBox(height: 6),
+            Text('Your plan and calorie targets update when you save.',
+                style: context.text.bodyMedium!.copyWith(color: context.palette.muted)),
+            label('About you'),
+            TextFormField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Name'),
+              validator: (v) => (v ?? '').trim().isEmpty ? 'Add your name' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _username,
+              decoration: const InputDecoration(labelText: 'Username', prefixText: '@'),
+              validator: (v) {
+                final s = (v ?? '').trim();
+                if (s.length < 3) return 'At least 3 characters';
+                if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(s)) return 'Letters, numbers, dots and underscores only';
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _gender,
+              decoration: const InputDecoration(labelText: 'Gender'),
+              items: [for (final g in _genders) DropdownMenuItem(value: g, child: Text(g))],
+              onChanged: (v) => setState(() => _gender = v),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () async {
+                final now = DateTime.now();
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _birthday ?? DateTime(now.year - 25),
+                  firstDate: DateTime(1920),
+                  lastDate: DateTime(now.year - 13, now.month, now.day),
+                );
+                if (picked != null) setState(() => _birthday = picked);
+              },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Date of birth',
+                  suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                ),
+                isEmpty: _birthday == null,
+                child: Text(_birthday == null ? '' : DateFormat('d MMMM yyyy').format(_birthday!)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _height,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Height (cm)'),
+                    validator: validateHeight,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _weight,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(labelText: 'Weight (${units.label})'),
+                    validator: (v) => validateWeight(units, v),
+                  ),
+                ),
+              ],
+            ),
+            label('Goal'),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final o in goalOptions) Pill(label: o.title, selected: _goal == o.value, onTap: () => setState(() => _goal = o.value)),
+              ],
+            ),
+            label('How active you are'),
+            DropdownButtonFormField<String>(
+              initialValue: _activity,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Activity'),
+              items: [
+                for (final o in activityOptions) DropdownMenuItem(value: o.value, child: Text('${o.title} · ${o.detail}', overflow: TextOverflow.ellipsis)),
+              ],
+              onChanged: (v) => setState(() => _activity = v),
+            ),
+            label('Daily food targets'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Set my own numbers'),
+              subtitle: Text(
+                suggested == null
+                    ? 'Otherwise we work them out from your details.'
+                    : 'Otherwise we use ${suggested.calories} kcal and ${suggested.proteinG} g protein from your plan.',
+              ),
+              value: _customFood,
+              onChanged: (v) => setState(() => _customFood = v),
+            ),
+            if (_customFood) ...[
+              const SizedBox(height: 8),
               TextFormField(
-                controller: _fullNameController,
-                decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
-                validator: (val) => val == null || val.trim().isEmpty ? 'Enter your full name' : null,
+                controller: _kcal,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Calories', suffixText: 'kcal'),
+                validator: (v) => (int.tryParse(v ?? '') ?? 0) < 800 ? 'At least 800' : null,
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
-                validator: (val) => val == null || val.trim().isEmpty ? 'Enter a username' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _gender,
-                decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                items: _genderOptions.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                onChanged: (val) => setState(() => _gender = val),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                title: const Text('Date of Birth', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                subtitle: Text(
-                  _dateOfBirth == null ? 'Not set' : DateFormat('MMMM d, yyyy').format(_dateOfBirth!),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                trailing: const Icon(Icons.calendar_today_rounded),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _dateOfBirth ?? DateTime.now().subtract(const Duration(days: 365 * 25)),
-                    firstDate: DateTime.now().subtract(const Duration(days: 365 * 120)),
-                    lastDate: DateTime.now(),
-                  );
-                  if (picked != null) {
-                    setState(() => _dateOfBirth = picked);
-                  }
-                },
-              ),
-              const SizedBox(height: 28),
-
-              // SECTION 2: Body Stats & Goals
-              _buildSectionHeader('Fitness Stats & Goals', theme),
               const SizedBox(height: 12),
-              Row(
-                children: [
+              Row(children: [
+                for (final (c, l) in [(_protein, 'Protein'), (_carbs, 'Carbs'), (_fat, 'Fat')]) ...[
                   Expanded(
                     child: TextFormField(
-                      controller: _heightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()),
+                      controller: c,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: l, suffixText: 'g'),
+                      validator: (v) => int.tryParse(v ?? '') == null ? 'Number' : null,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _weightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()),
-                    ),
-                  ),
+                  if (l != 'Fat') const SizedBox(width: 8),
                 ],
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _fitnessGoal,
-                decoration: const InputDecoration(labelText: 'Fitness Goal', border: OutlineInputBorder()),
-                items: _goalOptions.entries
-                    .map((g) => DropdownMenuItem(value: g.key, child: Text(g.value)))
-                    .toList(),
-                onChanged: (val) => setState(() => _fitnessGoal = val),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _activityLevel,
-                decoration: const InputDecoration(labelText: 'Activity Level', border: OutlineInputBorder()),
-                items: _activityOptions.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
-                onChanged: (val) => setState(() => _activityLevel = val),
-              ),
-              const SizedBox(height: 28),
-
-              // SECTION 3: Nutrition Goals
-              _buildSectionHeader('Daily Nutrition Targets', theme),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _caloriesController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Calories (kcal)', border: OutlineInputBorder()),
-                      validator: (val) => val == null || int.tryParse(val) == null ? 'Enter valid number' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _proteinController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Protein (g)', border: OutlineInputBorder()),
-                      validator: (val) => val == null || int.tryParse(val) == null ? 'Enter valid number' : null,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _carbsController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Carbs (g)', border: OutlineInputBorder()),
-                      validator: (val) => val == null || int.tryParse(val) == null ? 'Enter valid number' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _fatController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Fat (g)', border: OutlineInputBorder()),
-                      validator: (val) => val == null || int.tryParse(val) == null ? 'Enter valid number' : null,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-
-              // Save Button
-              ElevatedButton(
-                onPressed: _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Color(0xFF1F1B16),
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
+              ]),
             ],
-          ),
+            const SizedBox(height: 32),
+            PrimaryButton(label: 'Save', busy: _busy, onPressed: _save),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
-          ),
-        ),
-        const Divider(),
-      ],
     );
   }
 }

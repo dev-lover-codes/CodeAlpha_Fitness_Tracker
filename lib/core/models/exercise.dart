@@ -72,8 +72,8 @@ class Exercise {
       videoUrl: json['video_url'] as String?,
       isCustom: json['is_custom'] as bool? ?? false,
       createdBy: json['created_by'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 
@@ -89,8 +89,11 @@ class Exercise {
       'video_url': videoUrl,
       'is_custom': isCustom,
       'created_by': createdBy,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
     };
   }
 }
+
+/// Cardio and stretching are logged in minutes rather than weight × reps.
+bool isTimedExercise(Exercise? e) => e != null && (e.category == 'cardio' || e.category == 'flexibility');

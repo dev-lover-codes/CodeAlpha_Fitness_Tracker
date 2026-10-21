@@ -6,6 +6,7 @@ import 'package:fit_track/core/models/progress_photo.dart';
 import 'package:fit_track/core/providers/repository_providers.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
 import 'package:fit_track/core/providers/goals_provider.dart';
+import 'package:fit_track/core/providers/profile_provider.dart';
 
 /// Provider for body measurements list.
 final bodyMeasurementsProvider = AsyncNotifierProvider<BodyMeasurementsNotifier, List<BodyMeasurement>>(() {
@@ -22,16 +23,44 @@ class BodyMeasurementsNotifier extends AsyncNotifier<List<BodyMeasurement>> {
     return await repo.getBodyMeasurements(currentUser.id);
   }
 
-  Future<void> addMeasurement(BodyMeasurement measurement) async {
+  /// Creates a new log, or updates it when [measurement] already has an id.
+  Future<void> saveMeasurement(BodyMeasurement measurement) async {
     final repo = ref.read(measurementRepositoryProvider);
-    await repo.createBodyMeasurement(measurement);
+    final isNew = measurement.id.isEmpty;
+    if (isNew) {
+      await repo.createBodyMeasurement(measurement);
+    } else {
+      await repo.updateBodyMeasurement(measurement);
+    }
+
+    final previous = state.value ?? const <BodyMeasurement>[];
     ref.invalidateSelf();
 
-    // Auto-update weight goals
-    if (measurement.weightKg != null) {
-      await ref.read(goalsProvider.notifier).autoUpdateWeightGoals(measurement.weightKg!);
-    }
+    final weight = measurement.weightKg;
+    if (weight == null) return;
+
+    // Only the most recent weight should drive goals and the profile.
+    final newerExists = previous.any(
+      (m) => m.id != measurement.id && m.weightKg != null && m.loggedAt.isAfter(measurement.loggedAt),
+    );
+    if (newerExists) return;
+
+    try {
+      await ref.read(goalsProvider.notifier).autoUpdateWeightGoals(weight);
+    } catch (_) {}
+
+    // Keep the profile weight in sync so the plan and calorie targets follow.
+    try {
+      final profile = await ref.read(profileProvider.future);
+      if (profile != null && profile.weightKg != weight) {
+        await ref.read(profileRepositoryProvider).updateProfile(profile.copyWith(weightKg: weight));
+        ref.invalidate(profileProvider);
+      }
+    } catch (_) {}
   }
+
+  /// Kept for older call sites.
+  Future<void> addMeasurement(BodyMeasurement measurement) => saveMeasurement(measurement);
 
   Future<void> deleteMeasurement(String id) async {
     final repo = ref.read(measurementRepositoryProvider);

@@ -35,6 +35,7 @@ class WorkoutSet {
     int? durationSeconds,
     double? distanceMeters,
     int? rpe,
+    bool clearRpe = false,
     bool? isWarmup,
     bool? completed,
   }) {
@@ -46,7 +47,7 @@ class WorkoutSet {
       weightKg: weightKg ?? this.weightKg,
       durationSeconds: durationSeconds ?? this.durationSeconds,
       distanceMeters: distanceMeters ?? this.distanceMeters,
-      rpe: rpe ?? this.rpe,
+      rpe: clearRpe ? null : (rpe ?? this.rpe),
       isWarmup: isWarmup ?? this.isWarmup,
       completed: completed ?? this.completed,
     );

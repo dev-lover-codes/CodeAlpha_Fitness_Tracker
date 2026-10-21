@@ -42,6 +42,14 @@ class Prescription {
   int get startingReps => int.tryParse(reps.split(RegExp(r'[^0-9]')).first) ?? 10;
 
   String get label => sets <= 1 ? reps : '$sets × $reps';
+
+  /// For timed work ("25 min", "45 sec") the duration in seconds, else null.
+  int? get seconds {
+    final n = startingReps;
+    if (reps.endsWith('min')) return n * 60;
+    if (reps.endsWith('sec')) return n;
+    return null;
+  }
 }
 
 class PlannedExercise {
@@ -69,7 +77,7 @@ class PlannedSession {
       if (p.exercise.category == 'cardio' || p.exercise.category == 'flexibility') {
         total += p.prescription.startingReps;
       } else {
-        total += p.prescription.sets * (1 + (p.prescription.restSeconds / 60).round());
+        total += (p.prescription.sets * (0.75 + p.prescription.restSeconds / 60)).round();
       }
     }
     return total;
@@ -259,7 +267,7 @@ class PlanEngine {
     final isCompound = _compoundWords.any(name.contains);
     if (isCompound && e.category == 'strength') {
       score += goal == FitnessGoal.buildMuscle ? 2.5 : 1.5;
-      reason = 'Works several muscles at once';
+      reason = 'Big compound lift';
     }
 
     final isBodyweight = (e.equipment ?? '').toLowerCase().contains('bodyweight');
@@ -274,7 +282,7 @@ class PlanEngine {
       if (preferLowImpact && highImpact) score -= 3;
       if (preferLowImpact && lowImpact) {
         score += 2;
-        reason = 'Easy on the joints';
+        reason = 'Easy on joints';
       }
       if (reason.isEmpty) {
         reason = goal == FitnessGoal.loseWeight ? 'Good calorie burn' : 'Builds your engine';

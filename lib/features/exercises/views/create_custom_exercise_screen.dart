@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fit_track/core/models/exercise.dart';
 import 'package:fit_track/core/providers/auth_provider.dart';
-import 'package:fit_track/core/providers/repository_providers.dart';
 import 'package:fit_track/core/providers/exercises_provider.dart';
+import 'package:fit_track/core/providers/repository_providers.dart';
+import 'package:fit_track/core/ui/ui.dart';
 
 class CreateCustomExerciseScreen extends ConsumerStatefulWidget {
   const CreateCustomExerciseScreen({super.key});
@@ -15,258 +16,144 @@ class CreateCustomExerciseScreen extends ConsumerStatefulWidget {
 
 class _CreateCustomExerciseScreenState extends ConsumerState<CreateCustomExerciseScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _instructionsController = TextEditingController();
-  final _equipmentController = TextEditingController();
+  final _name = TextEditingController();
+  final _equipment = TextEditingController();
+  final _instructions = TextEditingController();
 
-  String _category = 'strength';
-  String _muscleGroup = 'chest';
+  String _type = 'strength';
+  String _muscle = 'chest';
   String _difficulty = 'beginner';
+  bool _busy = false;
 
-  final List<String> _categories = ['strength', 'cardio', 'flexibility', 'sports'];
-  final List<String> _muscleGroups = [
-    'chest',
-    'back',
-    'legs',
-    'shoulders',
-    'arms',
-    'core',
-    'full_body',
-    'cardio'
-  ];
-  final List<String> _difficulties = ['beginner', 'intermediate', 'advanced'];
-
-  bool _isLoading = false;
+  static const _muscles = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'full_body'];
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _instructionsController.dispose();
-    _equipmentController.dispose();
+    _name.dispose();
+    _equipment.dispose();
+    _instructions.dispose();
     super.dispose();
   }
 
-  String _capitalize(String text) {
-    if (text.isEmpty) return text;
-    return text.replaceAll('_', ' ').split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
-  }
-
-  Future<void> _submitForm() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) return;
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    final currentUser = ref.read(authServiceProvider).currentUser;
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: User session not found. Please log in again.')),
-      );
-      setState(() {
-        _isLoading = false;
-      });
+    final name = _name.text.trim();
+    final existing = ref.read(allExercisesProvider).value ?? const <Exercise>[];
+    if (existing.any((e) => e.name.toLowerCase() == name.toLowerCase())) {
+      showToast(context, 'You already have an exercise called "$name".');
       return;
     }
 
-    final newExercise = Exercise(
-      id: '', // Database will generate
-      name: _nameController.text.trim(),
-      category: _category,
-      muscleGroup: _muscleGroup,
-      equipment: _equipmentController.text.trim().isEmpty ? null : _equipmentController.text.trim(),
-      difficulty: _difficulty,
-      instructions: _instructionsController.text.trim().isEmpty ? null : _instructionsController.text.trim(),
-      isCustom: true,
-      createdBy: currentUser.id,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
+    setState(() => _busy = true);
     try {
-      final repo = ref.read(exerciseRepositoryProvider);
-      await repo.createExercise(newExercise);
-      
-      // Invalidate exercise providers to trigger fresh fetch from DB
+      final created = await ref.read(exerciseRepositoryProvider).createExercise(Exercise(
+            id: '',
+            name: name,
+            category: _type,
+            muscleGroup: _type == 'cardio' ? 'cardio' : (_type == 'flexibility' ? 'full_body' : _muscle),
+            equipment: _equipment.text.trim().isEmpty ? null : _equipment.text.trim(),
+            difficulty: _difficulty,
+            instructions: _instructions.text.trim().isEmpty ? null : _instructions.text.trim(),
+            isCustom: true,
+            createdBy: user.id,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ));
       ref.invalidate(allExercisesProvider);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Added to your exercises.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        context.go('/exercises');
-      }
+      if (!mounted) return;
+      showToast(context, '$name added.');
+      context.pushReplacement('/exercises/detail/${created.id}');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create exercise: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) showErrorToast(context, e);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Custom Exercise', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Exercise Name
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Exercise Name *',
-                        hintText: 'e.g., Kettlebell Swing',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a name for the exercise';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Category Dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _category,
-                      decoration: const InputDecoration(
-                        labelText: 'Category *',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _categories.map((cat) {
-                        return DropdownMenuItem(
-                          value: cat,
-                          child: Text(_capitalize(cat)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _category = val;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Muscle Group Dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _muscleGroup,
-                      decoration: const InputDecoration(
-                        labelText: 'Primary Muscle Group *',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _muscleGroups.map((muscle) {
-                        return DropdownMenuItem(
-                          value: muscle,
-                          child: Text(_capitalize(muscle)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _muscleGroup = val;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Difficulty Dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _difficulty,
-                      decoration: const InputDecoration(
-                        labelText: 'Difficulty Level *',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _difficulties.map((diff) {
-                        return DropdownMenuItem(
-                          value: diff,
-                          child: Text(_capitalize(diff)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _difficulty = val;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Equipment Text Field
-                    TextFormField(
-                      controller: _equipmentController,
-                      decoration: const InputDecoration(
-                        labelText: 'Equipment',
-                        hintText: 'e.g., Kettlebell, Mat (comma separated)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Instructions Text Field
-                    TextFormField(
-                      controller: _instructionsController,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Instructions',
-                        hintText: 'Enter step-by-step instructions on how to perform the exercise safely...',
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Submit Button
-                    ElevatedButton(
-                      onPressed: _submitForm,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: Color(0xFF1F1B16),
-                        minimumSize: const Size(double.infinity, 56),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Create Exercise',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
+      appBar: AppBar(),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          children: [
+            Text('New exercise', style: context.text.headlineLarge),
+            const SizedBox(height: 6),
+            Text("For anything that isn't in the list. Only you can see it.",
+                style: context.text.bodyMedium!.copyWith(color: context.palette.muted)),
+            const SizedBox(height: 24),
+            TextFormField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Landmine press'),
+              validator: (v) => (v ?? '').trim().length < 2 ? 'Give it a name' : null,
+            ),
+            const SizedBox(height: 20),
+            Text('Type', style: context.text.labelMedium),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 'strength', label: Text('Strength')),
+                ButtonSegment(value: 'cardio', label: Text('Cardio')),
+                ButtonSegment(value: 'flexibility', label: Text('Stretch')),
+              ],
+              selected: {_type},
+              onSelectionChanged: (s) => setState(() => _type = s.first),
+            ),
+            if (_type == 'strength') ...[
+              const SizedBox(height: 20),
+              Text('Main muscle', style: context.text.labelMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final m in _muscles)
+                    Pill(label: capitalize(m), selected: _muscle == m, onTap: () => setState(() => _muscle = m)),
+                ],
+              ),
+            ],
+            const SizedBox(height: 20),
+            Text('Difficulty', style: context.text.labelMedium),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 'beginner', label: Text('Easy')),
+                ButtonSegment(value: 'intermediate', label: Text('Medium')),
+                ButtonSegment(value: 'advanced', label: Text('Hard')),
+              ],
+              selected: {_difficulty},
+              onSelectionChanged: (s) => setState(() => _difficulty = s.first),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _equipment,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(labelText: 'Equipment (optional)', hintText: 'e.g. Barbell'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _instructions,
+              minLines: 3,
+              maxLines: 6,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'How to do it (optional)',
+                alignLabelWithHint: true,
               ),
             ),
+            const SizedBox(height: 28),
+            PrimaryButton(label: 'Save exercise', busy: _busy, onPressed: _save),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fit_track/core/models/exercise.dart';
 import 'package:fit_track/core/providers/workouts_provider.dart';
+import 'package:fit_track/core/ui/ui.dart';
 import 'package:fit_track/features/exercises/widgets/exercise_filterable_list.dart';
 
+/// Bottom-sheet picker for adding exercises to the running workout.
 class ExercisePickerScreen extends ConsumerStatefulWidget {
   const ExercisePickerScreen({super.key});
 
@@ -12,57 +14,47 @@ class ExercisePickerScreen extends ConsumerStatefulWidget {
 }
 
 class _ExercisePickerScreenState extends ConsumerState<ExercisePickerScreen> {
-  final Set<Exercise> _selectedExercises = {};
+  final List<Exercise> _selected = [];
+
+  void _add() {
+    final notifier = ref.read(activeWorkoutProvider.notifier);
+    for (final e in _selected) {
+      notifier.addExercise(e);
+    }
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
+      backgroundColor: context.palette.background,
       appBar: AppBar(
-        title: const Text(
-          'Add Exercises',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        backgroundColor: context.palette.background,
+        automaticallyImplyLeading: false,
+        title: Text('Add exercises', style: context.text.headlineSmall),
         actions: [
-          if (_selectedExercises.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: TextButton.icon(
-                onPressed: () {
-                  final activeWorkoutNotifier = ref.read(activeWorkoutProvider.notifier);
-                  for (final exercise in _selectedExercises) {
-                    activeWorkoutNotifier.addExercise(exercise);
-                  }
-                  Navigator.pop(context);
-                },
-                icon: const Icon(Icons.check_rounded, color: Color(0xFF1F1B16)),
-                label: Text(
-                  'Add (${_selectedExercises.length})',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1F1B16)),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
+          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ],
       ),
       body: ExerciseFilterableList(
         isPickerMode: true,
-        selectedExercises: _selectedExercises,
-        onExerciseSelected: (exercise, isSelected) {
-          setState(() {
-            if (isSelected) {
-              _selectedExercises.add(exercise);
-            } else {
-              _selectedExercises.remove(exercise);
-            }
-          });
-        },
+        selectedExercises: _selected.toSet(),
+        onExerciseSelected: (exercise, isSelected) => setState(() {
+          _selected.removeWhere((e) => e.id == exercise.id);
+          if (isSelected) _selected.add(exercise);
+        }),
       ),
+      bottomNavigationBar: _selected.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: PrimaryButton(
+                  label: _selected.length == 1 ? 'Add 1 exercise' : 'Add ${_selected.length} exercises',
+                  onPressed: _add,
+                ),
+              ),
+            ),
     );
   }
 }

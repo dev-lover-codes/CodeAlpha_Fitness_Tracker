@@ -78,10 +78,11 @@ jobs:
             ## FitTrack Mobile App (${{ steps.release_info.outputs.tag }})
 
             ### What's New
-            - Personal plan built from your profile: weekly sessions, sets and reps, picked exercises
-            - Suggested daily calories, protein and water based on your goal
-            - Start any planned session in one tap, pre-filled with exercises
-            - Fresh, warmer look and friendlier wording throughout the app
+            - Redesigned from scratch: calmer look, clearer screens, bundled fonts
+            - Rest timer, cardio logged in minutes, tap a set for effort or warm-up
+            - kg / lb setting now works everywhere
+            - Fixed reminders never firing, password reset links, and editing measurements
+            - Fixed dates shifting for non-UTC time zones and many smaller bugs
 
             ### Download & Installation
             Download the attached Android APK (`FitTrack-${{ steps.release_info.outputs.tag }}.apk` or `app-release.apk`) to install directly on your Android device.

@@ -72,8 +72,8 @@ class Profile {
       gender: json['gender'] as String?,
       fitnessGoal: json['fitness_goal'] as String?,
       activityLevel: json['activity_level'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 
@@ -89,8 +89,8 @@ class Profile {
       'gender': gender,
       'fitness_goal': fitnessGoal,
       'activity_level': activityLevel,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
     };
   }
 }

@@ -52,7 +52,7 @@ class NutritionLog {
     return NutritionLog(
       id: json['id'] as String,
       userId: json['user_id'] as String,
-      loggedAt: DateTime.parse(json['logged_at'] as String),
+      loggedAt: DateTime.parse(json['logged_at'] as String).toLocal(),
       mealType: json['meal_type'] as String,
       foodName: json['food_name'] as String,
       calories: json['calories'] as int,
@@ -66,7 +66,7 @@ class NutritionLog {
     return {
       'id': id,
       'user_id': userId,
-      'logged_at': loggedAt.toIso8601String(),
+      'logged_at': loggedAt.toUtc().toIso8601String(),
       'meal_type': mealType,
       'food_name': foodName,
       'calories': calories,

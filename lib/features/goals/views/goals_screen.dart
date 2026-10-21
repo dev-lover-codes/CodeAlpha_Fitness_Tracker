@@ -2,313 +2,252 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:fit_track/core/models/body_measurement.dart';
 import 'package:fit_track/core/models/goal.dart';
 import 'package:fit_track/core/providers/goals_provider.dart';
+import 'package:fit_track/core/providers/measurement_provider.dart';
+import 'package:fit_track/core/ui/ui.dart';
+import 'package:fit_track/core/utils/units.dart';
+
+/// Human description of a goal, e.g. "Get to 75 kg".
+String goalTitle(Goal g, WeightUnit units) => switch (g.goalType) {
+      'weight' => 'Get to ${units.format(g.targetValue)}',
+      'strength_pr' => '${g.unit}: ${units.format(g.targetValue)}',
+      'workout_frequency' => '${g.targetValue.round()} workouts a week',
+      _ => '${trimNum(g.targetValue)} ${g.unit}',
+    };
+
+/// The weight the user started from: the entry closest to when the goal was set.
+double? _startWeight(Goal g, List<BodyMeasurement> measurements) {
+  final withWeight = measurements.where((m) => m.weightKg != null).toList();
+  if (withWeight.isEmpty) return null;
+  final before = withWeight.where((m) => !m.loggedAt.isAfter(g.createdAt)).toList();
+  if (before.isNotEmpty) return before.first.weightKg; // newest first
+  return withWeight.last.weightKg; // otherwise the earliest after it
+}
+
+double goalProgress(Goal g, List<BodyMeasurement> measurements) {
+  if (g.status == 'completed') return 1;
+  if (g.goalType == 'weight') {
+    final start = _startWeight(g, measurements) ?? g.currentValue;
+    final total = (g.targetValue - start).abs();
+    if (total < 0.01) return g.currentValue == g.targetValue ? 1 : 0;
+    final moved = start > g.targetValue ? start - g.currentValue : g.currentValue - start;
+    return (moved / total).clamp(0.0, 1.0);
+  }
+  if (g.targetValue <= 0) return 0;
+  return (g.currentValue / g.targetValue).clamp(0.0, 1.0);
+}
 
 class GoalsScreen extends ConsumerWidget {
   const GoalsScreen({super.key});
 
-  String _getGoalTypeTitle(Goal goal) {
-    switch (goal.goalType) {
-      case 'weight':
-        return 'Body Weight Goal';
-      case 'workout_frequency':
-        return 'Workout Frequency Goal';
-      case 'strength_pr':
-        return 'Strength PR: ${goal.unit}';
-      default:
-        return 'Custom Goal: ${goal.unit}';
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(goalsProvider);
+
+    return Scaffold(
+      appBar: AppBar(),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'new-goal',
+        onPressed: () => context.push('/goals/new'),
+        icon: const Icon(Icons.add),
+        label: const Text('New goal'),
+      ),
+      body: async.when(
+        loading: () => const Loading(),
+        error: (e, _) => ErrorNote(error: e, onRetry: () => ref.invalidate(goalsProvider)),
+        data: (goals) {
+          final active = goals.where((g) => g.status == 'active').toList();
+          final done = goals.where((g) => g.status == 'completed').toList();
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 96),
+            children: [
+              Padding(padding: kPage, child: Text('Goals', style: context.text.headlineLarge)),
+              const SizedBox(height: 6),
+              Padding(
+                padding: kPage,
+                child: Text(
+                  'Weight, lifts and weekly workouts update on their own as you log.',
+                  style: context.text.bodyMedium!.copyWith(color: context.palette.muted),
+                ),
+              ),
+              const SectionLabel('Working on'),
+              if (active.isEmpty)
+                EmptyNote(
+                  title: 'No goals right now',
+                  message: 'One clear target beats five vague ones.',
+                  actionLabel: 'Set a goal',
+                  onAction: () => context.push('/goals/new'),
+                )
+              else
+                for (final g in active)
+                  Padding(padding: const EdgeInsets.only(bottom: 10), child: _GoalCard(goal: g)),
+              if (done.isNotEmpty) ...[
+                SectionLabel('Done · ${done.length}'),
+                PanelList(children: [for (final g in done) _DoneRow(goal: g)]),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GoalCard extends ConsumerWidget {
+  final Goal goal;
+  const _GoalCard({required this.goal});
+
+  Future<void> _updateCustom(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController(text: trimNum(goal.currentValue));
+    final value = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Where are you now?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(suffixText: goal.unit),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, double.tryParse(controller.text.replaceAll(',', '.'))),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (value == null) return;
+    try {
+      await ref.read(goalsProvider.notifier).updateGoalProgress(goal, value);
+    } catch (e) {
+      if (context.mounted) showErrorToast(context, e);
     }
   }
 
-  double _calculateProgress(Goal goal) {
-    if (goal.targetValue == 0.0) return 0.0;
-    if (goal.status == 'completed') return 1.0;
-
-    if (goal.goalType == 'weight') {
-      // If weight loss (target is less than current)
-      if (goal.targetValue < goal.currentValue) {
-        return (goal.targetValue / goal.currentValue).clamp(0.0, 1.0);
-      } else {
-        // Weight gain (target is greater than current)
-        return (goal.currentValue / goal.targetValue).clamp(0.0, 1.0);
-      }
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await confirmAction(context, title: 'Remove this goal?', confirmLabel: 'Remove', destructive: true);
+    if (!ok) return;
+    try {
+      await ref.read(goalsProvider.notifier).deleteGoal(goal.id);
+    } catch (e) {
+      if (context.mounted) showErrorToast(context, e);
     }
-    return (goal.currentValue / goal.targetValue).clamp(0.0, 1.0);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final goalsAsync = ref.watch(goalsProvider);
-    final theme = Theme.of(context);
+    final p = context.palette;
+    final units = ref.watch(weightUnitProvider);
+    final measurements = ref.watch(bodyMeasurementsProvider).value ?? const <BodyMeasurement>[];
+    final progress = goalProgress(goal, measurements);
 
-    // Watch for goal completion triggers to show a celebration pop-up!
-    ref.listen<Goal?>(justCompletedGoalProvider, (previous, next) {
-      if (next != null) {
-        _showCelebrationDialog(context, ref, next);
-      }
-    });
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Goals', style: TextStyle(fontWeight: FontWeight.bold)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/goals/new'),
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Color(0xFF1F1B16),
-        child: const Icon(Icons.add_rounded),
-      ),
-      body: goalsAsync.when(
-        data: (goals) {
-          if (goals.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.track_changes_outlined, size: 64, color: Colors.grey[400]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No fitness goals set yet',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Set target weights, weekly workouts, or lift targets to track progression.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => context.go('/goals/new'),
-                      icon: const Icon(Icons.add_rounded, color: Color(0xFF1F1B16)),
-                      label: const Text('Set your first goal', style: TextStyle(color: Color(0xFF1F1B16), fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.primary),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final activeGoals = goals.where((g) => g.status == 'active').toList();
-          final completedGoals = goals.where((g) => g.status == 'completed').toList();
-
-          return ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: [
-              if (activeGoals.isNotEmpty) ...[
-                Text(
-                  'Active Goals (${activeGoals.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ...activeGoals.map((goal) => _buildGoalCard(context, ref, goal, theme)),
-                const SizedBox(height: 24),
-              ],
-              if (completedGoals.isNotEmpty) ...[
-                Text(
-                  'Completed (${completedGoals.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ...completedGoals.map((goal) => _buildGoalCard(context, ref, goal, theme)),
-              ],
-              const SizedBox(height: 70), // FAB spacer
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-      ),
-    );
-  }
-
-  Widget _buildGoalCard(BuildContext context, WidgetRef ref, Goal goal, ThemeData theme) {
-    final progress = _calculateProgress(goal);
-    final isCompleted = goal.status == 'completed';
-    final typeTitle = _getGoalTypeTitle(goal);
-    
-    // Formatting target values
-    String targetStr = '';
-    String currentStr = '';
-    if (goal.goalType == 'weight' || goal.goalType == 'strength_pr') {
-      targetStr = '${goal.targetValue.toStringAsFixed(goal.targetValue % 1 == 0 ? 0 : 1)} kg';
-      currentStr = '${goal.currentValue.toStringAsFixed(goal.currentValue % 1 == 0 ? 0 : 1)} kg';
-    } else if (goal.goalType == 'workout_frequency') {
-      targetStr = '${goal.targetValue.toInt()} workouts/week';
-      currentStr = '${goal.currentValue.toInt()} workouts';
-    } else {
-      targetStr = '${goal.targetValue.toStringAsFixed(0)} ${goal.unit}';
-      currentStr = goal.currentValue.toStringAsFixed(0);
+    final String now;
+    switch (goal.goalType) {
+      case 'weight':
+        final left = (goal.targetValue - goal.currentValue).abs();
+        now = goal.currentValue <= 0
+            ? 'Log your weight to start tracking'
+            : '${units.format(goal.currentValue)} now · ${units.format(left)} to go';
+      case 'strength_pr':
+        now = goal.currentValue <= 0 ? 'Not lifted yet' : 'Best so far ${units.format(goal.currentValue)}';
+      case 'workout_frequency':
+        now = '${goal.currentValue.round()} this week';
+      default:
+        now = '${trimNum(goal.currentValue)} of ${trimNum(goal.targetValue)} ${goal.unit}';
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: isCompleted
-            ? BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.4), width: 1.5)
-            : BorderSide.none,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title and Action Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    typeTitle,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
-                  onPressed: () => _confirmDeleteGoal(context, ref, goal.id),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
+    String? due;
+    if (goal.targetDate != null) {
+      final today = DateTime.now();
+      final days = DateTime(goal.targetDate!.year, goal.targetDate!.month, goal.targetDate!.day)
+          .difference(DateTime(today.year, today.month, today.day))
+          .inDays;
+      due = days < 0
+          ? 'Was due ${DateFormat('d MMM').format(goal.targetDate!)}'
+          : days == 0
+              ? 'Due today'
+              : 'By ${DateFormat('d MMM').format(goal.targetDate!)} · $days ${days == 1 ? 'day' : 'days'} left';
+    }
 
-            // Target Date
-            if (goal.targetDate != null) ...[
-              Row(
-                children: [
-                  Icon(Icons.calendar_today_rounded, size: 12, color: Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Target Date: ${DateFormat('MMM d, y').format(goal.targetDate!)}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                  ),
+    return Panel(
+      padding: const EdgeInsets.fromLTRB(16, 14, 4, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(goalTitle(goal, units), style: context.text.titleMedium)),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_horiz, color: p.faint),
+                onSelected: (v) => v == 'update' ? _updateCustom(context, ref) : _delete(context, ref),
+                itemBuilder: (_) => [
+                  if (goal.goalType == 'custom') const PopupMenuItem(value: 'update', child: Text('Update progress')),
+                  const PopupMenuItem(value: 'delete', child: Text('Remove goal')),
                 ],
               ),
-              const SizedBox(height: 12),
             ],
-
-            // Progress Bar
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: theme.brightness == Brightness.dark ? Colors.grey[800] : Colors.grey[200],
-              color: isCompleted ? Colors.green : theme.colorScheme.primary,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            const SizedBox(height: 10),
-
-            // Progress Label Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Current: $currentStr',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: isCompleted ? Colors.green : null,
+                const SizedBox(height: 4),
+                Meter(value: progress, height: 6),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: Text(now, style: context.text.bodySmall)),
+                    Text('${(progress * 100).round()}%', style: context.text.labelMedium),
+                  ],
+                ),
+                if (due != null) ...[
+                  const SizedBox(height: 2),
+                  Text(due, style: context.text.bodySmall!.copyWith(color: p.faint)),
+                ],
+                if (goal.goalType == 'custom') ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 38)),
+                    onPressed: () => _updateCustom(context, ref),
+                    child: const Text('Update progress'),
                   ),
-                ),
-                Text(
-                  'Target: $targetStr',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
+                ],
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmDeleteGoal(BuildContext context, WidgetRef ref, String goalId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Goal?'),
-        content: const Text('Are you sure you want to remove this goal from tracking?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await ref.read(goalsProvider.notifier).deleteGoal(goalId);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
+}
 
-  void _showCelebrationDialog(BuildContext context, WidgetRef ref, Goal goal) {
-    final theme = Theme.of(context);
-    final title = _getGoalTypeTitle(goal);
+class _DoneRow extends ConsumerWidget {
+  final Goal goal;
+  const _DoneRow({required this.goal});
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Column(
-            children: [
-              Icon(Icons.emoji_events_rounded, size: 64, color: Colors.amber),
-              SizedBox(height: 12),
-              Text(
-                'Goal Achieved!',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Congratulations!',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You successfully reached your target for:\n$title',
-                style: const TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                // Clear trigger
-                ref.read(justCompletedGoalProvider.notifier).state = null;
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Color(0xFF1F1B16),
-                minimumSize: const Size(120, 48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Fantastic!', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.palette;
+    return ListRow(
+      leading: Icon(Icons.check_circle, color: p.accent),
+      title: goalTitle(goal, ref.watch(weightUnitProvider)),
+      subtitle: 'Set ${DateFormat('d MMM yyyy').format(goal.createdAt)}',
+      trailing: IconButton(
+        tooltip: 'Remove',
+        icon: Icon(Icons.close, size: 18, color: p.faint),
+        onPressed: () async {
+          try {
+            await ref.read(goalsProvider.notifier).deleteGoal(goal.id);
+          } catch (e) {
+            if (context.mounted) showErrorToast(context, e);
+          }
+        },
+      ),
     );
   }
 }

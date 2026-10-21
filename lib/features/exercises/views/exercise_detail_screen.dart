@@ -1,483 +1,236 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:fit_track/core/models/exercise.dart';
 import 'package:fit_track/core/models/workout.dart';
+import 'package:fit_track/core/models/workout_set.dart';
+import 'package:fit_track/core/providers/auth_provider.dart';
 import 'package:fit_track/core/providers/exercises_provider.dart';
+import 'package:fit_track/core/providers/plan_provider.dart';
+import 'package:fit_track/core/providers/repository_providers.dart';
 import 'package:fit_track/core/providers/workouts_provider.dart';
-import 'package:fit_track/core/utils/formatters.dart';
+import 'package:fit_track/core/ui/trend_chart.dart';
+import 'package:fit_track/core/ui/ui.dart';
+import 'package:fit_track/core/utils/units.dart';
 
 class ExerciseDetailScreen extends ConsumerWidget {
   final String exerciseId;
 
-  const ExerciseDetailScreen({
-    super.key,
-    required this.exerciseId,
-  });
+  const ExerciseDetailScreen({super.key, required this.exerciseId});
 
-  Color _getMuscleColor(String muscle) {
-    switch (muscle.toLowerCase()) {
-      case 'chest':
-        return Colors.blue;
-      case 'back':
-        return Colors.orange;
-      case 'legs':
-        return Colors.purple;
-      case 'shoulders':
-        return Colors.teal;
-      case 'arms':
-        return Colors.amber;
-      case 'core':
-        return Colors.pink;
-      case 'full_body':
-        return Colors.indigo;
-      case 'cardio':
-        return Colors.deepOrange;
-      default:
-        return Colors.grey;
+  Future<void> _delete(BuildContext context, WidgetRef ref, Exercise e) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Delete ${e.name}?',
+      message: 'It will also disappear from past workouts that used it.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!ok || !context.mounted) return;
+    final done = await runWithSpinner(context, () async {
+      await ref.read(exerciseRepositoryProvider).deleteExercise(e.id);
+      return true;
+    });
+    if (done == true && context.mounted) {
+      ref.invalidate(allExercisesProvider);
+      ref.invalidate(userWorkoutsProvider);
+      context.pop();
     }
-  }
-
-  Color _getDifficultyColor(String diff) {
-    switch (diff.toLowerCase()) {
-      case 'beginner':
-        return Colors.green;
-      case 'intermediate':
-        return Colors.orange;
-      case 'advanced':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _capitalize(String text) {
-    if (text.isEmpty) return text;
-    return text.replaceAll('_', ' ').split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    
-    // Watch raw exercise list
     final allAsync = ref.watch(allExercisesProvider);
-    final favoritesAsync = ref.watch(favoriteExerciseIdsProvider);
-    final workoutsAsync = ref.watch(userWorkoutsProvider);
+    final favs = ref.watch(favoriteExerciseIdsProvider).value ?? const <String>[];
+    final workouts = ref.watch(userWorkoutsProvider).value ?? const <Workout>[];
+    final uid = ref.watch(authServiceProvider).currentUser?.id;
+    final plan = ref.watch(fitnessPlanProvider).value;
+    final p = context.palette;
+
+    final exercise = allAsync.value?.where((e) => e.id == exerciseId).firstOrNull;
+    final starred = favs.contains(exerciseId);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Exercise Details', style: TextStyle(fontWeight: FontWeight.bold)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Check if we can pop, otherwise navigate to /exercises
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/exercises');
-            }
-          },
-        ),
+        actions: [
+          if (exercise != null)
+            IconButton(
+              tooltip: starred ? 'Unstar' : 'Star',
+              icon: Icon(starred ? Icons.star : Icons.star_border, color: starred ? p.warm : null),
+              onPressed: () async {
+                try {
+                  await ref.read(favoriteExerciseIdsProvider.notifier).toggleFavorite(exerciseId);
+                } catch (e) {
+                  if (context.mounted) showErrorToast(context, e);
+                }
+              },
+            ),
+          if (exercise != null && exercise.isCustom && exercise.createdBy == uid)
+            PopupMenuButton<String>(
+              onSelected: (_) => _delete(context, ref, exercise),
+              itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete exercise'))],
+            ),
+        ],
       ),
       body: allAsync.when(
-        data: (exercises) {
-          final exercise = exercises.firstWhere(
-            (e) => e.id == exerciseId,
-            orElse: () => Exercise(
-              id: '',
-              name: 'Unknown Exercise',
-              category: 'strength',
-              muscleGroup: 'full_body',
-              difficulty: 'beginner',
-              isCustom: false,
-              createdAt: DateTime(1970),
-              updatedAt: DateTime(1970),
-            ),
-          );
-
-          if (exercise.id.isEmpty) {
-            return const Center(child: Text('Exercise not found.'));
+        loading: () => const Loading(),
+        error: (e, _) => ErrorNote(error: e, onRetry: () => ref.invalidate(allExercisesProvider)),
+        data: (_) {
+          if (exercise == null) {
+            return const EmptyNote(title: 'Exercise not found', message: 'It may have been deleted.');
           }
+          final pick = plan?.recommended.where((s) => s.exercise.id == exerciseId).firstOrNull;
+          final sessions = _sessions(exerciseId, workouts);
 
-          final favorites = favoritesAsync.value ?? [];
-          final isFav = favorites.contains(exercise.id);
-          final workouts = workoutsAsync.value ?? [];
-
-          // Compute exercise history
-          final historyPoints = _computeHistory(exercise.id, workouts);
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Details card
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                exercise.name,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                                color: isFav ? Colors.amber : Colors.grey,
-                                size: 28,
-                              ),
-                              onPressed: () {
-                                ref.read(favoriteExerciseIdsProvider.notifier).toggleFavorite(exercise.id);
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Metadata Chips row
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildInfoChip(
-                              theme,
-                              label: _capitalize(exercise.category),
-                              color: theme.colorScheme.primary,
-                              textColor: Color(0xFF1F1B16),
-                            ),
-                            _buildInfoChip(
-                              theme,
-                              label: _capitalize(exercise.muscleGroup),
-                              color: _getMuscleColor(exercise.muscleGroup),
-                              textColor: Colors.white,
-                            ),
-                            _buildInfoChip(
-                              theme,
-                              label: _capitalize(exercise.difficulty),
-                              color: _getDifficultyColor(exercise.difficulty),
-                              textColor: Colors.white,
-                            ),
-                            if (exercise.equipment != null)
-                              _buildInfoChip(
-                                theme,
-                                label: exercise.equipment!,
-                                color: Colors.grey[700]!,
-                                textColor: Colors.white,
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 40),
+            children: [
+              Padding(
+                padding: kPage,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(exercise.name, style: context.text.headlineLarge),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      Tag(capitalize(exercise.muscleGroup)),
+                      Tag(capitalize(exercise.difficulty)),
+                      if ((exercise.equipment ?? '').isNotEmpty) Tag(exercise.equipment!),
+                      if (pick != null) Tag('For you · ${pick.reason.toLowerCase()}', strong: true),
+                    ]),
+                  ],
                 ),
-                const SizedBox(height: 24),
-
-                // Instructions Card
-                Text(
-                  'Instructions',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SectionLabel('How to do it'),
+              Padding(
+                padding: kPage,
+                child: Text(
+                  (exercise.instructions ?? '').trim().isEmpty
+                      ? 'No notes for this one yet.'
+                      : exercise.instructions!.trim(),
+                  style: context.text.bodyLarge!.copyWith(height: 1.55),
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      exercise.instructions ?? 'No instructions provided.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 28),
-
-                // History Section
-                if (historyPoints.isEmpty) ...[
-                  Card(
-                    color: theme.brightness == Brightness.dark
-                        ? Colors.grey[900]?.withValues(alpha: 0.5)
-                        : Colors.grey[100],
-                    elevation: 0,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 16.0),
-                      child: Center(
-                        child: Column(
-                          children: [
-                            Icon(Icons.history_rounded, size: 36, color: Colors.grey[500]),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No progression history yet',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: Colors.grey[500],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Once you perform this exercise in a workout, your progression chart and personal bests will appear here!',
-                              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  // Progression Chart
-                  Text(
-                    'Progression Chart (Max Weight)',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 200,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 16, top: 12, bottom: 8),
-                      child: LineChart(
-                        _buildLineChartData(historyPoints, theme),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Personal Bests Table
-                  Text(
-                    'Your best lifts',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPersonalBestsTable(historyPoints, theme),
-                ],
-              ],
-            ),
+              ),
+              const SectionLabel('Your history'),
+              if (sessions.isEmpty)
+                const EmptyNote(
+                  title: 'Not done yet',
+                  message: "Once you log this in a workout you'll see your best sets and progress here.",
+                )
+              else if (isTimedExercise(exercise))
+                _TimedHistory(sessions: sessions)
+              else
+                _StrengthHistory(sessions: sessions),
+            ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: ${err.toString()}')),
       ),
     );
   }
 
-  Widget _buildInfoChip(
-    ThemeData theme, {
-    required String label,
-    required Color color,
-    required Color textColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: theme.brightness == Brightness.dark ? Colors.white : color,
-        ),
-      ),
-    );
-  }
-
-  List<_ExerciseHistoryPoint> _computeHistory(String exerciseId, List<Workout> workouts) {
-    final List<_ExerciseHistoryPoint> points = [];
-
-    // Sort workouts oldest to newest
-    final sorted = List<Workout>.from(workouts);
-    sorted.sort((a, b) => a.startedAt.compareTo(b.startedAt));
-
-    for (var w in sorted) {
-      final matchingExs = w.exercises.where((we) => we.exerciseId == exerciseId).toList();
-      if (matchingExs.isEmpty) continue;
-
-      for (var we in matchingExs) {
-        final completedSets = we.sets.where((s) => s.completed).toList();
-        if (completedSets.isEmpty) continue;
-
-        double maxWeight = 0.0;
-        int maxReps = 0;
-        double volume = 0.0;
-
-        for (var s in completedSets) {
-          final weight = s.weightKg ?? 0.0;
-          final reps = s.reps ?? 0;
-          if (weight > maxWeight) maxWeight = weight;
-          if (reps > maxReps) maxReps = reps;
-          volume += weight * reps;
-        }
-
-        points.add(_ExerciseHistoryPoint(
-          date: w.startedAt,
-          maxWeight: maxWeight,
-          maxReps: maxReps,
-          volume: volume,
-        ));
-      }
+  /// Every session that included this exercise, oldest first.
+  static List<_Session> _sessions(String id, List<Workout> workouts) {
+    final out = <_Session>[];
+    for (final w in workouts) {
+      final sets = w.exercises
+          .where((we) => we.exerciseId == id)
+          .expand((we) => we.sets)
+          .where((s) => s.completed)
+          .toList();
+      if (sets.isNotEmpty) out.add(_Session(w.startedAt, sets));
     }
-
-    return points;
+    out.sort((a, b) => a.date.compareTo(b.date));
+    return out;
   }
+}
 
-  LineChartData _buildLineChartData(List<_ExerciseHistoryPoint> points, ThemeData theme) {
-    final spots = <FlSpot>[];
-    for (int i = 0; i < points.length; i++) {
-      spots.add(FlSpot(i.toDouble(), points[i].maxWeight));
-    }
+class _Session {
+  final DateTime date;
+  final List<WorkoutSet> sets;
+  const _Session(this.date, this.sets);
 
-    final double minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b) - 5;
-    final double maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b) + 5;
+  Iterable<WorkoutSet> get working => sets.where((s) => !s.isWarmup);
+  double get best => working.fold(0, (m, s) => (s.weightKg ?? 0) > m ? s.weightKg! : m);
+  int get mostReps => working.fold(0, (m, s) => (s.reps ?? 0) > m ? s.reps! : m);
+  int get minutes => (sets.fold<int>(0, (t, s) => t + (s.durationSeconds ?? 0)) / 60).round();
+}
 
-    return LineChartData(
-      gridData: const FlGridData(show: false),
-      titlesData: FlTitlesData(
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        bottomTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            getTitlesWidget: (value, meta) {
-              final idx = value.toInt();
-              if (idx < 0 || idx >= points.length) return const SizedBox.shrink();
-              
-              // Only show first, middle, last labels if there are many points to prevent overlap
-              if (points.length > 3) {
-                if (idx != 0 && idx != points.length - 1 && idx != points.length ~/ 2) {
-                  return const SizedBox.shrink();
-                }
-              }
-              
-              final dateStr = DateFormat('MMM d').format(points[idx].date);
-              return Padding(
-                padding: const EdgeInsets.only(top: 6.0),
-                child: Text(
-                  dateStr,
-                  style: TextStyle(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.bold),
-                ),
-              );
-            },
-            reservedSize: 22,
-          ),
-        ),
-        leftTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            getTitlesWidget: (value, meta) {
-              return Text(
-                '${value.toStringAsFixed(0)}kg',
-                style: TextStyle(fontSize: 9, color: Colors.grey[500], fontWeight: FontWeight.bold),
-              );
-            },
-            reservedSize: 36,
-          ),
-        ),
-      ),
-      borderData: FlBorderData(show: false),
-      minX: 0,
-      maxX: (points.length - 1).toDouble(),
-      minY: minY < 0 ? 0 : minY,
-      maxY: maxY,
-      lineBarsData: [
-        LineChartBarData(
-          spots: spots,
-          isCurved: true,
-          color: theme.colorScheme.primary,
-          barWidth: 4,
-          isStrokeCapRound: true,
-          dotData: FlDotData(
-            show: true,
-            getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-              radius: 4,
-              color: theme.colorScheme.primary,
-              strokeWidth: 2,
-              strokeColor: Color(0xFF1F1B16),
-            ),
-          ),
-          belowBarData: BarAreaData(
-            show: true,
-            color: theme.colorScheme.primary.withValues(alpha: 0.12),
-          ),
-        ),
-      ],
-    );
-  }
+class _StrengthHistory extends ConsumerWidget {
+  final List<_Session> sessions;
+  const _StrengthHistory({required this.sessions});
 
-  Widget _buildPersonalBestsTable(List<_ExerciseHistoryPoint> points, ThemeData theme) {
-    double maxWeight = 0.0;
-    int maxReps = 0;
-    double maxVolume = 0.0;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(weightUnitProvider);
+    final bodyweight = sessions.every((s) => s.best == 0);
+    final best = sessions.map((s) => s.best).fold<double>(0, (a, b) => b > a ? b : a);
+    final mostReps = sessions.map((s) => s.mostReps).fold<int>(0, (a, b) => b > a ? b : a);
+    final recent = sessions.reversed.take(5).toList();
 
-    for (var p in points) {
-      if (p.maxWeight > maxWeight) maxWeight = p.maxWeight;
-      if (p.maxReps > maxReps) maxReps = p.maxReps;
-      if (p.volume > maxVolume) maxVolume = p.volume;
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            _buildPbRow('Max Weight Lifted', '${maxWeight.toStringAsFixed(maxWeight % 1 == 0 ? 0 : 1)} kg', theme),
-            const Divider(height: 20),
-            _buildPbRow('Max Repetitions in a Set', '$maxReps reps', theme),
-            const Divider(height: 20),
-            _buildPbRow('Max Session Volume', Formatters.formatVolume(maxVolume), theme),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPbRow(String label, String value, ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
-            fontSize: 16,
+        Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                  child: bodyweight
+                      ? Stat(value: '$mostReps', unit: 'reps', label: 'Most in one set', large: true)
+                      : Stat(value: units.number(best), unit: units.label, label: 'Heaviest set', large: true),
+                ),
+                Expanded(child: Stat(value: '${sessions.length}', label: sessions.length == 1 ? 'Session' : 'Sessions')),
+              ]),
+              const SizedBox(height: 18),
+              TrendChart(
+                points: [
+                  for (final s in sessions) TrendPoint(s.date, bodyweight ? s.mostReps.toDouble() : units.fromKg(s.best)),
+                ],
+                format: (v) => trimNum(v),
+              ),
+            ],
           ),
         ),
+        const SectionLabel('Recent sessions'),
+        PanelList(children: [
+          for (final s in recent)
+            ListRow(
+              title: DateFormat('EEE d MMM').format(s.date),
+              subtitle: s.working
+                  .map((x) => (x.weightKg ?? 0) > 0 ? '${units.number(x.weightKg!)}×${x.reps ?? 0}' : '${x.reps ?? 0}')
+                  .join('  ·  '),
+            ),
+        ]),
       ],
     );
   }
 }
 
-class _ExerciseHistoryPoint {
-  final DateTime date;
-  final double maxWeight;
-  final int maxReps;
-  final double volume;
+class _TimedHistory extends StatelessWidget {
+  final List<_Session> sessions;
+  const _TimedHistory({required this.sessions});
 
-  _ExerciseHistoryPoint({
-    required this.date,
-    required this.maxWeight,
-    required this.maxReps,
-    required this.volume,
-  });
+  @override
+  Widget build(BuildContext context) {
+    final total = sessions.fold<int>(0, (t, s) => t + s.minutes);
+    final longest = sessions.fold<int>(0, (m, s) => s.minutes > m ? s.minutes : m);
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: Stat(value: '$longest', unit: 'min', label: 'Longest session', large: true)),
+            Expanded(child: Stat(value: '$total', unit: 'min', label: 'All time')),
+          ]),
+          const SizedBox(height: 18),
+          TrendChart(
+            points: [for (final s in sessions) TrendPoint(s.date, s.minutes.toDouble())],
+            format: (v) => '${v.round()}m',
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -81,7 +81,7 @@ class GoalsNotifier extends AsyncNotifier<List<Goal>> {
 
   /// Automatically updates matching weight goals.
   Future<void> autoUpdateWeightGoals(double weight) async {
-    final activeGoals = state.value ?? [];
+    final activeGoals = await future.catchError((_) => <Goal>[]);
     for (final goal in activeGoals) {
       if (goal.goalType == 'weight' && goal.status == 'active') {
         await updateGoalProgress(goal, weight);
@@ -91,7 +91,7 @@ class GoalsNotifier extends AsyncNotifier<List<Goal>> {
 
   /// Automatically updates matching strength goals.
   Future<void> autoUpdateStrengthGoals(String exerciseName, double maxWeight) async {
-    final activeGoals = state.value ?? [];
+    final activeGoals = await future.catchError((_) => <Goal>[]);
     for (final goal in activeGoals) {
       if (goal.goalType == 'strength_pr' &&
           goal.status == 'active' &&
@@ -105,7 +105,7 @@ class GoalsNotifier extends AsyncNotifier<List<Goal>> {
 
   /// Automatically updates workout frequency goals.
   Future<void> autoUpdateWorkoutFrequencyGoals([List<Workout>? customWorkoutsList]) async {
-    final activeGoals = state.value ?? [];
+    final activeGoals = await future.catchError((_) => <Goal>[]);
     
     final List<Workout> workouts;
     if (customWorkoutsList != null) {

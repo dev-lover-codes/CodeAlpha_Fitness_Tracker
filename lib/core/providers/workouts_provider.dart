@@ -52,6 +52,14 @@ final userWorkoutsProvider = FutureProvider<List<Workout>>((ref) async {
   return await repository.getWorkouts(currentUser.id);
 });
 
+/// Total workouts ever logged (the history list above is paged).
+final workoutCountProvider = FutureProvider<int>((ref) async {
+  ref.watch(userWorkoutsProvider);
+  final currentUser = ref.read(authServiceProvider).currentUser;
+  if (currentUser == null) return 0;
+  return ref.read(workoutRepositoryProvider).getWorkoutCount(currentUser.id);
+});
+
 /// NotifierProvider managing the state of an active in-progress workout session.
 final activeWorkoutProvider = NotifierProvider<ActiveWorkoutNotifier, Workout?>(() {
   return ActiveWorkoutNotifier();
@@ -59,20 +67,37 @@ final activeWorkoutProvider = NotifierProvider<ActiveWorkoutNotifier, Workout?>(
 
 class ActiveWorkoutNotifier extends Notifier<Workout?> {
   final _uuid = const Uuid();
-  static const _prefsKey = 'active_workout_session';
+  static const _legacyPrefsKey = 'active_workout_session';
+  String? _userId;
+
+  // Each user gets their own saved session, so signing in as someone else on
+  // the same phone never shows the previous person's workout.
+  String get _prefsKey => 'active_workout_session_${_userId ?? 'none'}';
 
   @override
   Workout? build() {
-    _loadFromPrefs();
+    _userId = ref.watch(authStateProvider.select((s) => s.value?.session?.user.id)) ??
+        ref.read(authServiceProvider).currentUser?.id;
+    if (_userId != null) _loadFromPrefs();
     return null;
   }
 
   /// Asynchronously loads any active workout session stored in local preferences.
   Future<void> _loadFromPrefs() async {
+    final uid = _userId;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_prefsKey);
-      if (jsonStr != null) {
+      var jsonStr = prefs.getString(_prefsKey);
+
+      // Older versions stored one shared session; adopt it only if it's ours.
+      final legacy = prefs.getString(_legacyPrefsKey);
+      if (jsonStr == null && legacy != null) {
+        final map = json.decode(legacy) as Map<String, dynamic>;
+        if (map['user_id'] == uid) jsonStr = legacy;
+        await prefs.remove(_legacyPrefsKey);
+      }
+
+      if (jsonStr != null && uid == _userId && state == null) {
         final map = json.decode(jsonStr) as Map<String, dynamic>;
         state = _workoutFromFullJson(map);
       }
@@ -83,7 +108,7 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
 
   /// Persists the current active workout session locally.
   Future<void> _saveToPrefs() async {
-    if (state == null) return;
+    if (state == null || _userId == null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonStr = json.encode(_workoutToFullJson(state!));
@@ -101,6 +126,13 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
     } catch (e) {
       debugPrint("FitTrack: Failed to clear active workout from local preferences: $e");
     }
+  }
+
+  /// Renames the running workout.
+  void rename(String name) {
+    if (state == null || name.trim().isEmpty) return;
+    state = state!.copyWith(name: name.trim());
+    _saveToPrefs();
   }
 
   /// Starts a new active workout session.
@@ -123,7 +155,7 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
     for (var i = 0; i < planned.length; i++) {
       final p = planned[i];
       final weId = 'temp_exercise_${_uuid.v4()}';
-      final isTimed = p.exercise.category != 'strength' || p.prescription.reps.contains('sec');
+      final timedSeconds = p.prescription.seconds;
       exercises.add(WorkoutExercise(
         id: weId,
         workoutId: workoutId,
@@ -137,8 +169,9 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
             id: 'temp_set_${_uuid.v4()}',
             workoutExerciseId: weId,
             setNumber: s + 1,
-            reps: isTimed ? 1 : p.prescription.startingReps,
-            weightKg: 0.0,
+            reps: timedSeconds != null ? null : p.prescription.startingReps,
+            durationSeconds: timedSeconds,
+            weightKg: timedSeconds != null ? null : 0.0,
             completed: false,
           ),
         ),
@@ -177,8 +210,8 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
           id: 'temp_set_${_uuid.v4()}',
           workoutExerciseId: exerciseId,
           setNumber: 1,
-          reps: 10,
-          weightKg: 0.0,
+          reps: isTimedExercise(exercise) ? null : 10,
+          weightKg: isTimedExercise(exercise) ? null : 0.0,
           completed: false,
         )
       ],
@@ -221,8 +254,9 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
         id: 'temp_set_${_uuid.v4()}',
         workoutExerciseId: workoutExerciseId,
         setNumber: newSetNumber,
-        reps: lastSet?.reps ?? 10,
-        weightKg: lastSet?.weightKg ?? 0.0,
+        reps: lastSet == null ? (isTimedExercise(exercise.exercise) ? null : 10) : lastSet.reps,
+        weightKg: lastSet == null ? (isTimedExercise(exercise.exercise) ? null : 0.0) : lastSet.weightKg,
+        durationSeconds: lastSet?.durationSeconds,
         rpe: lastSet?.rpe,
         isWarmup: false,
         completed: false,
@@ -282,7 +316,21 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
       throw Exception("No active workout session found to save.");
     }
 
-    final activeWorkout = state!;
+    // Keep only sets that were ticked off, and drop exercises with none.
+    final keptExercises = <WorkoutExercise>[];
+    for (final we in state!.exercises) {
+      final done = we.sets.where((s) => s.completed).toList();
+      if (done.isEmpty) continue;
+      keptExercises.add(we.copyWith(
+        orderIndex: keptExercises.length,
+        sets: [for (var i = 0; i < done.length; i++) done[i].copyWith(setNumber: i + 1)],
+      ));
+    }
+    if (keptExercises.isEmpty) {
+      throw Exception('Tick off at least one set before finishing.');
+    }
+
+    final activeWorkout = state!.copyWith(exercises: keptExercises);
     final completedAt = DateTime.now();
     final durationSeconds = completedAt.difference(activeWorkout.startedAt).inSeconds;
     final totalVolumeKg = _calculateTotalVolume(activeWorkout.exercises);
@@ -317,11 +365,13 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
     ref.invalidate(streakProvider);
     ref.invalidate(userProfileProvider);
 
-    // 6. Auto-update strength PR and frequency goals
+    // 6. Auto-update strength and frequency goals with this session's best lifts
     final goalsNotifier = ref.read(goalsProvider.notifier);
-    for (var pr in prs) {
+    for (final we in savedWorkout.exercises) {
+      final best = we.sets.fold<double>(0, (m, s) => (s.weightKg ?? 0) > m ? s.weightKg! : m);
+      if (best <= 0) continue;
       try {
-        await goalsNotifier.autoUpdateStrengthGoals(pr.exerciseName, pr.weightKg);
+        await goalsNotifier.autoUpdateStrengthGoals(we.exercise?.name ?? '', best);
       } catch (e) {
         debugPrint("FitTrack: Failed to auto-update strength goal: $e");
       }
@@ -348,7 +398,7 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
     double sum = 0.0;
     for (var exercise in exercises) {
       for (var set in exercise.sets) {
-        if (set.completed && set.weightKg != null && set.reps != null) {
+        if (set.completed && !set.isWarmup && set.weightKg != null && set.reps != null) {
           sum += set.weightKg! * set.reps!;
         }
       }
@@ -380,7 +430,7 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
       // Find the best completed set in the active workout for this exercise
       WorkoutSet? bestActiveSet;
       for (var s in activeSets) {
-        if (s.weightKg == null || s.reps == null) continue;
+        if (s.isWarmup || s.weightKg == null || s.reps == null || s.weightKg! <= 0) continue;
         if (bestActiveSet == null) {
           bestActiveSet = s;
         } else {
@@ -398,16 +448,8 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
       final exerciseName = we.exercise?.name ?? 'Exercise';
       final pastSets = pastSetsByExercise[exerciseId] ?? [];
 
-      if (pastSets.isEmpty) {
-        // First time doing this exercise - automatically a PR!
-        prs.add(PersonalRecord(
-          exerciseName: exerciseName,
-          weightKg: bestActiveSet.weightKg!,
-          reps: bestActiveSet.reps!,
-          isWeightPr: true,
-        ));
-        continue;
-      }
+      // First time doing this exercise: that sets a baseline, not a record.
+      if (pastSets.isEmpty) continue;
 
       // Find max weight in past sets
       double maxPastWeight = 0.0;
@@ -453,11 +495,11 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
       'user_id': workout.userId,
       'name': workout.name,
       'notes': workout.notes,
-      'started_at': workout.startedAt.toIso8601String(),
-      'completed_at': workout.completedAt?.toIso8601String(),
+      'started_at': workout.startedAt.toUtc().toIso8601String(),
+      'completed_at': workout.completedAt?.toUtc().toIso8601String(),
       'duration_seconds': workout.durationSeconds,
       'total_volume_kg': workout.totalVolumeKg,
-      'created_at': workout.createdAt.toIso8601String(),
+      'created_at': workout.createdAt.toUtc().toIso8601String(),
       'exercises': workout.exercises.map((e) => {
         'id': e.id,
         'workout_id': e.workoutId,
@@ -494,11 +536,11 @@ class ActiveWorkoutNotifier extends Notifier<Workout?> {
       userId: json['user_id'] as String,
       name: json['name'] as String,
       notes: json['notes'] as String?,
-      startedAt: DateTime.parse(json['started_at'] as String),
-      completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at'] as String) : null,
+      startedAt: DateTime.parse(json['started_at'] as String).toLocal(),
+      completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at'] as String).toLocal() : null,
       durationSeconds: json['duration_seconds'] as int?,
       totalVolumeKg: (json['total_volume_kg'] as num? ?? 0.0).toDouble(),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       exercises: parsedExercises,
     );
   }

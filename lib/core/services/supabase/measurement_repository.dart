@@ -39,6 +39,22 @@ class MeasurementRepository {
     }
   }
 
+  /// Updates an existing body measurement.
+  Future<BodyMeasurement> updateBodyMeasurement(BodyMeasurement measurement) async {
+    try {
+      final jsonMap = measurement.toJson()..remove('id');
+      final data = await _supabase
+          .from('body_measurements')
+          .update(jsonMap)
+          .eq('id', measurement.id)
+          .select()
+          .single();
+      return BodyMeasurement.fromJson(data);
+    } catch (e) {
+      throw AppException("Failed to update body measurement: ${e.toString()}", e);
+    }
+  }
+
   /// Deletes a body measurement.
   Future<void> deleteBodyMeasurement(String id) async {
     try {
